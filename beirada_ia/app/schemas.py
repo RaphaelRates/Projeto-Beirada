@@ -48,3 +48,11 @@ class MetricsResponse(BaseModel):
     total_requests: int
     successful_requests: int
     avg_inference_ms: float
+
+class UserCreate(BaseModel):
+    name: str
+    password: str
+
+class UserResponse(BaseModel):
+    id: int
+    name: str
