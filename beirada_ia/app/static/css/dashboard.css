@@ -1,0 +1,155 @@
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: 'Segoe UI', Roboto, sans-serif;
+    background: #f0f2f5;
+    color: #333;
+    padding: 1.5rem;
+}
+
+.dashboard {
+    max-width: 1600px;
+    margin: 0 auto;
+}
+
+/* HEADER */
+.header {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    background: #1e4d2b;
+    padding: 1rem 2rem;
+    border-radius: 12px;
+    color: #fff;
+    margin-bottom: 2rem;
+}
+
+.header h1 {
+    font-weight: 600;
+    font-size: 1.6rem;
+}
+
+.controls {
+    display: flex;
+    align-items: center;
+    gap: 0.8rem;
+}
+
+.controls label {
+    font-weight: 500;
+}
+
+.controls select {
+    padding: 0.4rem 1.2rem 0.4rem 0.8rem;
+    border: none;
+    border-radius: 8px;
+    background: #fff;
+    color: #1e4d2b;
+    font-weight: 600;
+    cursor: pointer;
+    outline: none;
+}
+
+.controls select:focus {
+    box-shadow: 0 0 0 3px #f57c00;
+}
+
+.controls button {
+    padding: 0.4rem 1.2rem;
+    background: #f57c00;
+    color: #fff;
+    border: none;
+    border-radius: 8px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+.controls button:hover {
+    background: #e65100;
+}
+
+/* CARDS */
+.cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 1.5rem;
+    margin-bottom: 2rem;
+}
+
+.card {
+    background: #fff;
+    border-radius: 12px;
+    padding: 1.2rem;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+    border-left: 5px solid #f57c00;
+}
+
+.card h3 {
+    font-size: 0.85rem;
+    text-transform: uppercase;
+    color: #888;
+    margin-bottom: 0.3rem;
+}
+
+.card p {
+    font-size: 2rem;
+    font-weight: 700;
+    color: #1e4d2b;
+}
+
+.card p#lastUpdate {
+    font-size: 1rem;
+    font-weight: 400;
+    color: #666;
+}
+
+/* GRID DE GRÁFICOS */
+.charts-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+    gap: 1.5rem;
+}
+
+.chart-card {
+    background: #fff;
+    border-radius: 12px;
+    padding: 1.2rem;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+}
+
+.chart-card h2 {
+    font-size: 1rem;
+    font-weight: 600;
+    color: #1e4d2b;
+    margin-bottom: 0.8rem;
+}
+
+.chart-wrapper {
+    position: relative;
+    height: 220px;
+}
+
+/* RESPONSIVO */
+@media (max-width: 768px) {
+    .charts-grid {
+        grid-template-columns: 1fr;
+    }
+    .header {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 0.8rem;
+    }
+    .controls {
+        justify-content: flex-start;
+        flex-wrap: wrap;
+    }
+    .card p {
+        font-size: 1.6rem;
+    }
+}

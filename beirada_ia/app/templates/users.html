@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Gerenciar Usuários</title>
+    <link rel="stylesheet" href="/static/css/users.css" />
+</head>
+<body>
+    <div class="users-container">
+        <!-- Header com volta ao dashboard -->
+        <header class="header">
+            <h1>👥 Gerenciar Usuários</h1>
+            <a href="/dashboard" class="btn-back">← Voltar ao Dashboard</a>
+        </header>
+
+        <!-- Formulário de cadastro -->
+        <section class="form-section">
+            <h2>Adicionar Novo Usuário</h2>
+            <form id="userForm">
+                <div class="form-row">
+                    <div class="field">
+                        <label for="userName">Nome</label>
+                        <input type="text" id="userName" placeholder="Nome completo" required />
+                    </div>
+                    <div class="field">
+                        <label for="userId">ID</label>
+                        <input type="text" id="userId" placeholder="ID único" required />
+                    </div>
+                    <div class="field">
+                        <label for="userPassword">Senha (mín. 12 caracteres)</label>
+                        <input type="password" id="userPassword" placeholder="Senha" required minlength="12" />
+                    </div>
+                    <div class="field field-actions">
+                        <button type="submit" id="addBtn">Adicionar</button>
+                        <button type="reset" id="clearBtn">Limpar</button>
+                    </div>
+                </div>
+                <div id="formError" class="error hidden"></div>
+                <div id="formSuccess" class="success hidden">Usuário adicionado com sucesso!</div>
+            </form>
+        </section>
+
+        <!-- Pesquisa e tabela -->
+        <section class="table-section">
+            <div class="table-controls">
+                <input type="text" id="searchInput" placeholder="🔍 Pesquisar por nome ou ID..." />
+                <span id="resultCount">0 usuários</span>
+            </div>
+            <div class="table-wrapper">
+                <table id="userTable">
+                    <thead>
+                        <tr>
+                            <th>Nome</th>
+                            <th>ID</th>
+                            <th>Ações</th>
+                        </tr>
+                    </thead>
+                    <tbody id="userTableBody">
+                        <!-- linhas geradas pelo JS -->
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+        <!-- Modal de edição (oculto) -->
+        <div id="editModal" class="modal hidden">
+            <div class="modal-content">
+                <span class="close-modal">&times;</span>
+                <h2>Editar Usuário</h2>
+                <form id="editForm">
+                    <div class="field">
+                        <label for="editName">Nome</label>
+                        <input type="text" id="editName" required />
+                    </div>
+                    <div class="field">
+                        <label for="editId">ID</label>
+                        <input type="text" id="editId" required readonly />
+                    </div>
+                    <div class="field">
+                        <label for="editPassword">Nova Senha (mín. 12 caracteres, opcional)</label>
+                        <input type="password" id="editPassword" placeholder="Deixe em branco para manter" minlength="12" />
+                    </div>
+                    <div class="modal-actions">
+                        <button type="submit" id="saveEditBtn">Salvar</button>
+                        <button type="button" id="cancelEditBtn">Cancelar</button>
+                    </div>
+                    <div id="editError" class="error hidden"></div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <script src="/static/js/users.js"></script>
+</body>
+</html>
