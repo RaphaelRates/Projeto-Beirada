@@ -1,21 +1,14 @@
 import asyncio
 
-from fastapi import FastAPI, HTTPException, Query, Request, Response, Depends
-from fastapi.responses import HTMLResponse, StreamingResponse
-# from model import get_default_model_name, load_model
-from app.core.api_instance import app
-from app.database import init_db, get_db
-
-from fastapi.templating import Jinja2Templates
+from fastapi import Request
 from fastapi.staticfiles import StaticFiles
 
-# from preprocessing.preprocessor import CONFIG_DEFAULT, Preprocessor
-
-
+# from model import get_default_model_name, load_model
+from app.core.api_instance import app
+from app.core.template_instance import templates
 
 _metrics = {"total": 0, "success": 0, "total_ms": 0.0}
 _streaming_lock = asyncio.Lock()
-
 
 
 app.mount(
