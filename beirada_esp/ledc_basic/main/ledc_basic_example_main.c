@@ -7,140 +7,59 @@
    CONDITIONS OF ANY KIND, either express or implied.
 */
 #include <stdio.h>
-#include "driver/ledc.h"
-#include "esp_err.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
+#include "esp_log.h"
+#include "servo.h"
+#include "filas.h"
 
-/*#define LEDC_TIMER              LEDC_TIMER_0
-#define LEDC_MODE               LEDC_LOW_SPEED_MODE
-#define LEDC_OUTPUT_IO          (5) // Define the output GPIO
-#define LEDC_CHANNEL            LEDC_CHANNEL_0
-#define LEDC_DUTY_RES           LEDC_TIMER_13_BIT // Set duty resolution to 13 bits
-#define LEDC_DUTY               (4096) // Set duty to 50%. (2 ** 13) * 50% = 4096
-#define LEDC_FREQUENCY          (4000) // Frequency in Hertz. Set frequency at 4 kHz
-*/
-
-/* Warning:
- * For ESP32, ESP32S2, ESP32S3, ESP32C3, ESP32C2, ESP32C6, ESP32H2 (rev < 1.2), ESP32P4 (rev < 3.0) targets,
- * when LEDC_DUTY_RES selects the maximum duty resolution (i.e. value equal to SOC_LEDC_TIMER_BIT_WIDTH),
- * 100% duty cycle is not reachable (duty cannot be set to (2 ** SOC_LEDC_TIMER_BIT_WIDTH)).
- */
-
-#define SERVO1_GPIO 20
-#define SERVO2_GPIO 14
-#define SERVO3_GPIO 21
-
-#define SERVO_FREQ 50
-#define SERVO_RESOLUTION LEDC_TIMER_14_BIT
-
-#define SERVO_MIN_PULSE 500
-#define SERVO_MAX_PULSE 2500
-
-static void servo_init(void)
-{
-    ledc_timer_config_t timer_config = {
-        .speed_mode = LEDC_LOW_SPEED_MODE,
-        .timer_num = LEDC_TIMER_0,
-        .duty_resolution = SERVO_RESOLUTION,
-        .freq_hz = SERVO_FREQ,
-        .clk_cfg = LEDC_AUTO_CLK
-    };
-
-    ledc_timer_config(&timer_config);
-
-    ledc_channel_config_t channel1 = {
-        .gpio_num = SERVO1_GPIO,
-        .speed_mode = LEDC_LOW_SPEED_MODE,
-        .channel = LEDC_CHANNEL_0,
-        .timer_sel = LEDC_TIMER_0,
-        .duty = 0,
-        .hpoint = 0
-    };
-
-    ledc_channel_config_t channel2 = {
-        .gpio_num = SERVO2_GPIO,
-        .speed_mode = LEDC_LOW_SPEED_MODE,
-        .channel = LEDC_CHANNEL_1,
-        .timer_sel = LEDC_TIMER_0,
-        .duty = 0,
-        .hpoint = 0
-    };
-
-    ledc_channel_config_t channel3 = {
-        .gpio_num = SERVO3_GPIO,
-        .speed_mode = LEDC_LOW_SPEED_MODE,
-        .channel = LEDC_CHANNEL_2,
-        .timer_sel = LEDC_TIMER_0,
-        .duty = 0,
-        .hpoint = 0
-    };
-
-    ledc_channel_config(&channel1);
-    ledc_channel_config(&channel2);
-    ledc_channel_config(&channel3);
-}
-
-static void servo_write(int channel, int angle)
-{
-    if (angle < 0)
-        angle = 0;
-
-
-
-    int pulse_us =
-        SERVO_MIN_PULSE +
-        ((SERVO_MAX_PULSE - SERVO_MIN_PULSE) * angle) / 180;
-
-    uint32_t duty =
-        ((uint32_t)pulse_us * 16383) / 20000;
-
-    esp_err_t err;
-
-    err = ledc_set_duty(
-        LEDC_LOW_SPEED_MODE,
-        channel,
-        duty
-    );
-
-    if (err != ESP_OK) {
-        printf("Erro ledc_set_duty: %d\n", err);
-        return;
-    }
-
-    err = ledc_update_duty(
-        LEDC_LOW_SPEED_MODE,
-        channel
-    );
-
-    if (err != ESP_OK) {
-        printf("Erro ledc_update_duty: %d\n", err);
-    }
-}
-
-
+static const char *TAG = "MAIN";
 
 void app_main(void)
 {
-    servo_init();
+    ESP_LOGI(TAG, "Iniciando Sistema de Controle da Esteira...");
 
-    while (1)
-    {
-        servo_write(0, 90);
-        servo_write(1, 90);
-        servo_write(2, 90);
-        vTaskDelay(pdMS_TO_TICKS(2000));
-
-        servo_write(0, 50);
-        vTaskDelay(pdMS_TO_TICKS(2000));
-
-        servo_write(0, 90);
-        servo_write(1, 145);
-        vTaskDelay(pdMS_TO_TICKS(2000));
-
-        servo_write(1, 90);
-        servo_write(2, 50);
-        vTaskDelay(pdMS_TO_TICKS(2000));
+    // 1. Inicializa Servos
+    if (servo_init() != ESP_OK) {
+        ESP_LOGE(TAG, "Erro crítico ao inicializar servos.");
+        return;
     }
-}
 
+    // Coloca todos os servos em repouso
+    for (int i = 0; i < SERVO_MAX_COUNT; i++) {
+        servo_desativar((servo_id_t)i);
+    }
+
+    // 2. Inicializa Filas e Tasks
+    if (logica_filas_init() != ESP_OK) {
+        ESP_LOGE(TAG, "Erro crítico ao inicializar lógica da esteira.");
+        return;
+    }
+
+    // --- TESTE DE SIMULAÇÃO DE PEÇAS NO FLUXO ---
+    vTaskDelay(pdMS_TO_TICKS(2000));
+
+    servo_abrir(servo1);
+    servo_abrir(servo2);
+    servo_abrir(servo3);
+    vTaskDelay(pdMS_TO_TICKS(3000));
+
+    for (int i = 0; i < SERVO_MAX_COUNT; i++) {
+        servo_desativar((servo_id_t)i);
+    }
+    
+    // Simula: Peça 3 detectada t=0ms (Servo 3 deve acionar em t=4500ms)
+    peca_para_fila(3);
+
+    // Simula: Peça 1 detectada t=500ms (Servo 1 deve acionar em t=2000ms, ANTES da Peça 3!)
+    vTaskDelay(pdMS_TO_TICKS(500));
+    peca_para_fila(1);
+
+    peca_para_fila(2);
+
+    for (int i = 0; i < 30; i++) {
+        peca_para_fila(rand() % 3 + 1); // Peças aleatórias entre 1 e 3
+        vTaskDelay(pdMS_TO_TICKS(1500));
+    }
+
+}
