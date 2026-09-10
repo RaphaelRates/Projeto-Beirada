@@ -1,7 +1,6 @@
-from app.model import get_default_model_name, load_model
-from beirada_ia.app.schemas import PredictRequest, PredictResponse
-from app.core.process_instance import _preprocessor
-from beirada_ia.app.services.capture_image_service import _decode_image
+from model import get_default_model_name, load_model
+from schemas import PredictRequest, PredictResponse
+from core.process_instance import _preprocessor
 from fastapi import HTTPException
 from PIL import Image
 from typing import Optional
@@ -9,6 +8,7 @@ import numpy as np
 import httpx
 import io
 import subprocess
+import base64
 
 def _load_image_from_request(request: PredictRequest) -> np.ndarray:
     if not request.image_base64 and not request.image_url:

@@ -7,9 +7,6 @@ from typing import Tuple
 import cv2
 import numpy as np
 
-
-
-
 def letterbox(
     frame: np.ndarray,
     target_size: int = 640,

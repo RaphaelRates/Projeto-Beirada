@@ -1,19 +1,26 @@
 services:
-
-
+  # ─────────────────────────────────────────────────────────
+  # Serviço principal da API YOLO
+  # ─────────────────────────────────────────────────────────
   yolo-api:
     build:
       context: .
-      dockerfile: Dockerfile.api
+      dockerfile: beirada_ia/Dockerfile.api
     container_name: yolo-api
     ports:
       - "8000:8000"
+    privileged: true
     volumes:
-      - ./models:/app/models:ro    # pesos somente-leitura
-      - ./output:/app/output       # resultados gravados aqui
-      - ./images:/app/images:ro    # imagens de teste
+      - ./app/models:/app/models:ro
+      - ./app/output:/app/output
+      - ./app/images:/app/images:ro
+      - ./app:/app/app
+      - /dev:/dev
+      - /run/udev:/run/udev:ro
     environment:
       - MODEL_NAME=yolov8n.pt
+      - MODEL_PATH=/app/models/yolov8n.pt
+      - CONFIDENCE=0.4
     networks:
       - yolo-net
     restart: unless-stopped
@@ -22,24 +29,61 @@ services:
       interval: 15s
       timeout: 5s
       retries: 3
+      start_period: 40s
 
+  # ─────────────────────────────────────────────────────────
+  # Serviço de streaming com câmera (Raspberry Pi 5)
+  # ─────────────────────────────────────────────────────────
+  yolo-stream:
+    build:
+      context: .
+      dockerfile: beirada_ia/Dockerfile.api
+    container_name: yolo-stream
+    ports:
+      - "5000:5000"
+    privileged: true
+    volumes:
+      - ./app/stream:/app/stream
+      - ./app/models:/app/models:ro
+      - ./app/output:/app/output
+      - /dev:/dev
+      - /run/udev:/run/udev:ro
+    environment:
+      - MODEL_NAME=yolov8n.pt
+      - MODEL_PATH=/app/models/yolov8n.pt
+      - CONFIDENCE=0.4
+    command: >
+      python3 stream/mjpeg_server.py
+      --device 0
+      --infer-every 3
+      --infer-size 320
+      --port 5000
+    networks:
+      - yolo-net
+    restart: unless-stopped
+    depends_on:
+      yolo-api:
+        condition: service_healthy
 
+  # ─────────────────────────────────────────────────────────
+  # Cliente para processamento de imagens
+  # ─────────────────────────────────────────────────────────
   yolo-client:
     build:
       context: .
-      dockerfile: Dockerfile.client
+      dockerfile: beirada_ia/Dockerfile.client
     container_name: yolo-client
     volumes:
       - ./images:/client/images:ro
       - ./output:/client/output
     environment:
-      - API_URL=http://yolo-api:8000   # resolve pelo nome do serviço
+      - API_URL=http://yolo-api:8000
     networks:
       - yolo-net
     depends_on:
       yolo-api:
-        condition: service_healthy     # aguarda healthcheck passar
-
+        condition: service_healthy
+    restart: unless-stopped
 
 networks:
   yolo-net:

@@ -5,12 +5,14 @@ from time import time
 from fastapi import HTTPException, Request, Response
 from fastapi.staticfiles import StaticFiles
 
-from app.core.api_instance import app
-from app.core.template_instance import templates
-from beirada_ia.app.model import get_default_model_name, load_model
-from beirada_ia.app.schemas import BatchPredictRequest, BatchPredictResponse, HealthResponse, MetricsResponse, PredictRequest, PredictResponse
-from beirada_ia.app.services.capture_image_service import _decode_image, _load_image_from_request
-from beirada_ia.app.services.inference_service import _run_inference
+from PIL import Image
+
+from core.api_instance import app
+from core.template_instance import templates
+from model import get_default_model_name, load_model
+from schemas import BatchPredictRequest, BatchPredictResponse, HealthResponse, MetricsResponse, PredictRequest, PredictResponse
+from services.capture_image_service import _decode_image, _load_image_from_request
+from services.inference_service import _run_inference
 
 _metrics = {"total": 0, "success": 0, "total_ms": 0.0}
 _streaming_lock = asyncio.Lock()
@@ -18,7 +20,7 @@ _streaming_lock = asyncio.Lock()
 
 app.mount(
     "/static",
-    StaticFiles(directory="app/static"),
+    StaticFiles(directory="/app/static"),
     name="static"
 )
 

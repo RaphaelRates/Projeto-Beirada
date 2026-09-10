@@ -5,7 +5,7 @@ Integra-se à suíte pytest (tests/test_api.py).
 """
 import numpy as np
 import pytest
-from preprocessing.preprocessor import Preprocessor, PreprocessConfig
+from beirada_ia.app.preprocessing.preprocessor import Preprocessor, PreprocessConfig
 
 
 
@@ -72,14 +72,14 @@ class TestBboxAdjustment:
 
 class TestPreprocessorConfigs:
     def test_config_low_light_applies_clahe(self):
-        from preprocessing.preprocessor import CONFIG_LOW_LIGHT
+        from beirada_ia.app.preprocessing.preprocessor import CONFIG_LOW_LIGHT
         pp  = Preprocessor(CONFIG_LOW_LIGHT)
         res = pp.process(make_frame())
         assert res.frame.shape[2] == 3   # deve continuar RGB
 
 
     def test_config_default_no_filter(self):
-        from preprocessing.preprocessor import CONFIG_DEFAULT
+        from beirada_ia.app.preprocessing.preprocessor import CONFIG_DEFAULT
         pp = Preprocessor(CONFIG_DEFAULT)
         assert not pp.cfg.gaussian_blur
         assert not pp.cfg.median_blur

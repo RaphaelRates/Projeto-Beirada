@@ -1,10 +1,12 @@
 import json
 import subprocess
 import time
-from app.model import get_default_model_name, load_model
-from beirada_ia.app.schemas import PredictResponse
+from model import get_default_model_name, load_model
+from schemas import PredictResponse
 
-from app.core.process_instance import _preprocessor
+from core.process_instance import _preprocessor
+
+import numpy as np
 
 
 

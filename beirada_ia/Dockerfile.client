@@ -3,7 +3,7 @@ FROM python:3.11-slim-bookworm
 WORKDIR /client
 
 # Copia e instala dependências
-COPY client/requirements.txt .
+COPY beirada_ia/client/requirements.txt .
 RUN if [ -f requirements.txt ]; then \
         pip install --no-cache-dir -r requirements.txt; \
     else \
@@ -12,6 +12,6 @@ RUN if [ -f requirements.txt ]; then \
     fi
 
 # Copia o código do cliente
-COPY client/ .
+COPY beirada_ia/client/ .
 
 CMD ["python", "client.py"]

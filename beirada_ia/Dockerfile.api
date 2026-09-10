@@ -21,7 +21,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 WORKDIR /app
 
 # Copia e instala dependências Python
-COPY app/requirements.txt .
+COPY beirada_ia/app/requirements.txt .
 RUN if [ -f requirements.txt ]; then \
         pip install --no-cache-dir -r requirements.txt; \
     else \
@@ -30,7 +30,7 @@ RUN if [ -f requirements.txt ]; then \
     fi
 
 # Copia o código da aplicação
-COPY app/ .
+COPY beirada_ia/app/ .
 
 EXPOSE 8000
 
