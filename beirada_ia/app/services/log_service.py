@@ -1,5 +1,4 @@
 import json
-import subprocess
 import time
 
 def log_event(event: str, level: str = "INFO", **kwargs):

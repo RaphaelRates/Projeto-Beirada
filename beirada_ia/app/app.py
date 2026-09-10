@@ -2,10 +2,15 @@ import asyncio
 import io
 from time import time
 
-from fastapi import HTTPException, Request, Response
+# pyrefly: ignore [missing-import]
+from fastapi import HTTPException, Request, Response, Query
+# pyrefly: ignore [missing-import]
 from fastapi.staticfiles import StaticFiles
 
+# pyrefly: ignore [missing-import]
 from PIL import Image
+# pyrefly: ignore [missing-import]
+import numpy as np  
 
 from core.api_instance import app
 from core.template_instance import templates
@@ -13,6 +18,17 @@ from model import get_default_model_name, load_model
 from schemas import BatchPredictRequest, BatchPredictResponse, HealthResponse, MetricsResponse, PredictRequest, PredictResponse
 from services.capture_image_service import _decode_image, _load_image_from_request
 from services.inference_service import _run_inference
+from services.log_service import log_event
+
+# pyrefly: ignore [missing-import]
+from fastapi.responses import StreamingResponse
+# pyrefly: ignore [missing-import]
+import subprocess
+
+# pyrefly: ignore [missing-import]
+import asyncio
+
+
 
 _metrics = {"total": 0, "success": 0, "total_ms": 0.0}
 _streaming_lock = asyncio.Lock()
@@ -117,3 +133,177 @@ async def get_metrics():
         avg_inference_ms=round(avg, 2),
     )
 
+
+@app.get("/stream/camera")
+async def stream_camera(
+    request: Request,
+    confidence: float = Query(0.25, ge=0.0, le=1.0, description="Limiar de confiança"),
+    model_name: str = Query("yolov8n.pt", description="Modelo YOLO a ser utilizado"),
+    framerate: int = Query(15, ge=1, le=30, description="FPS de captura solicitados ao sensor"),
+):
+    """Transmite vídeo contínuo da câmera com detecções YOLO sobrepostas."""
+    if _streaming_lock.locked():
+        log_event(
+            "stream_rejected",
+            level="WARN",
+            reason="stream_already_running",
+        )
+        raise HTTPException(
+            status_code=409,
+            detail="Já existe um stream de câmera em andamento. Feche a aba atual antes de abrir outra.",
+        )
+
+    model = load_model(model_name)
+
+    async def frame_generator():
+        async with _streaming_lock:
+            cmd = [
+                "rpicam-vid",
+                "-t", "0",
+                "-n",
+                "--codec", "mjpeg",
+                "--quality", "80",
+                "--width", "640",
+                "--height", "480",
+                "--framerate", str(framerate),
+                "-o", "-",
+            ]
+
+            proc = None
+
+            try:
+                proc = subprocess.Popen(
+                    cmd,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                )
+
+                log_event(
+                    "stream_started",
+                    pid=proc.pid,
+                    model=model_name,
+                    confidence=confidence,
+                    framerate=framerate,
+                )
+
+                loop = asyncio.get_running_loop()
+                buffer = b""
+
+                while True:
+                    if await request.is_disconnected():
+                        log_event(
+                            "stream_client_disconnected",
+                            pid=proc.pid,
+                        )
+                        break
+
+                    try:
+                        chunk = await asyncio.wait_for(
+                            loop.run_in_executor(
+                                None,
+                                proc.stdout.read,
+                                4096,
+                            ),
+                            timeout=5.0,
+                        )
+                    except asyncio.TimeoutError:
+                        log_event(
+                            "stream_timeout",
+                            level="WARN",
+                            pid=proc.pid,
+                        )
+                        break
+
+                    if not chunk:
+                        break
+
+                    buffer += chunk
+
+                    while True:
+                        start = buffer.find(b"\xff\xd8")
+                        if start == -1:
+                            break
+
+                        end = buffer.find(b"\xff\xd9", start + 2)
+                        if end == -1:
+                            break
+
+                        raw_frame = buffer[start:end + 2]
+                        buffer = buffer[end + 2:]
+
+                        try:
+                            img = Image.open(
+                                io.BytesIO(raw_frame)
+                            ).convert("RGB")
+                            img_np = np.array(img)
+
+                            results = model(
+                                img_np,
+                                conf=confidence,
+                                verbose=False,
+                            )
+
+                            annotated = results[0].plot()
+                            annotated_pil = Image.fromarray(annotated)
+
+                            out_buffer = io.BytesIO()
+                            annotated_pil.save(
+                                out_buffer,
+                                format="JPEG",
+                                quality=85,
+                            )
+
+                            jpeg_bytes = out_buffer.getvalue()
+
+                            yield (
+                                b"--frame\r\n"
+                                b"Content-Type: image/jpeg\r\n\r\n"
+                                + jpeg_bytes
+                                + b"\r\n"
+                            )
+
+                        except Exception as e:
+                            log_event(
+                                "stream_frame_error",
+                                level="ERROR",
+                                reason=str(e),
+                            )
+
+            finally:
+                if proc is not None:
+                    log_event(
+                        "stream_stopping",
+                        pid=proc.pid,
+                    )
+
+                    proc.terminate()
+
+                    try:
+                        proc.wait(timeout=2)
+                    except subprocess.TimeoutExpired:
+                        proc.kill()
+                        proc.wait(timeout=2)
+
+                    if proc.stderr:
+                        stderr_output = (
+                            proc.stderr.read()
+                            .decode(errors="ignore")
+                            .strip()
+                        )
+
+                        if stderr_output:
+                            log_event(
+                                "stream_camera_stderr",
+                                level="WARN",
+                                output=stderr_output,
+                            )
+
+                    log_event(
+                        "stream_stopped",
+                        pid=proc.pid,
+                    )
+
+    return StreamingResponse(
+        frame_generator(),
+        media_type="multipart/x-mixed-replace; boundary=frame",
+    )
