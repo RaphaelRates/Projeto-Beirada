@@ -28,17 +28,10 @@ app.mount(
 @app.get("/stream/view")
 async def stream_view(request: Request):
     return templates.TemplateResponse(
-        "stream.html",
+        "index.html",
         {"request": request}
     )
 
-@app.get("/")
-async def home(request: Request):
-    return templates.TemplateResponse(
-        request=request,
-        name="login.html",
-        context={}
-    )
 
 @app.get("/health", response_model=HealthResponse)
 async def health_check():
