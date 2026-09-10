@@ -11,10 +11,8 @@ services:
       - "8000:8000"
     privileged: true
     volumes:
-      - ./app/models:/app/models:ro
-      - ./app/output:/app/output
-      - ./app/images:/app/images:ro
-      - ./app:/app/app
+      - ./beirada_ia/models:/app/models:ro
+      - ./beirada_ia/app/output:/app/output
       - /dev:/dev
       - /run/udev:/run/udev:ro
     environment:
@@ -37,15 +35,13 @@ services:
   yolo-stream:
     build:
       context: .
-      dockerfile: beirada_ia/Dockerfile.api
+      dockerfile: beirada_ia/Dockerfile.stream
     container_name: yolo-stream
     ports:
       - "5000:5000"
     privileged: true
     volumes:
-      - ./app/stream:/app/stream
-      - ./app/models:/app/models:ro
-      - ./app/output:/app/output
+      - ./beirada_ia/models:/app/models:ro
       - /dev:/dev
       - /run/udev:/run/udev:ro
     environment:
@@ -74,8 +70,8 @@ services:
       dockerfile: beirada_ia/Dockerfile.client
     container_name: yolo-client
     volumes:
-      - ./images:/client/images:ro
-      - ./output:/client/output
+      - ./beirada_ia/client/images:/client/images:ro
+      - ./beirada_ia/client/output:/client/output
     environment:
       - API_URL=http://yolo-api:8000
     networks:
