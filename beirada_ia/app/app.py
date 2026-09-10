@@ -1,5 +1,7 @@
 import asyncio
 import io
+import shutil
+import sys
 from time import time
 
 # pyrefly: ignore [missing-import]
@@ -10,7 +12,7 @@ from fastapi.staticfiles import StaticFiles
 # pyrefly: ignore [missing-import]
 from PIL import Image
 # pyrefly: ignore [missing-import]
-import numpy as np  
+import numpy as np
 
 from core.api_instance import app
 from core.template_instance import templates
@@ -27,6 +29,9 @@ import subprocess
 
 # pyrefly: ignore [missing-import]
 import asyncio
+
+# pyrefly: ignore [missing-import]
+import cv2
 
 
 
@@ -141,7 +146,12 @@ async def stream_camera(
     model_name: str = Query("yolov8n.pt", description="Modelo YOLO a ser utilizado"),
     framerate: int = Query(15, ge=1, le=30, description="FPS de captura solicitados ao sensor"),
 ):
-    """Transmite vídeo contínuo da câmera com detecções YOLO sobrepostas."""
+    """Transmite vídeo contínuo da câmera com detecções YOLO sobrepostas.
+
+    Cenários suportados automaticamente:
+    - Linux (Raspberry Pi): usa rpicam-vid via subprocess para câmera CSI.
+    - Windows: usa OpenCV (cv2.VideoCapture) para webcam USB.
+    """
     if _streaming_lock.locked():
         log_event(
             "stream_rejected",
@@ -155,7 +165,10 @@ async def stream_camera(
 
     model = load_model(model_name)
 
-    async def frame_generator():
+    # ──────────────────────────────────────────────────────────────────────────
+    # Cenário 1 — Linux / Raspberry Pi: rpicam-vid (câmera CSI via libcamera)
+    # ──────────────────────────────────────────────────────────────────────────
+    async def frame_generator_rpicam():
         async with _streaming_lock:
             cmd = [
                 "rpicam-vid",
@@ -180,6 +193,7 @@ async def stream_camera(
 
                 log_event(
                     "stream_started",
+                    backend="rpicam-vid",
                     pid=proc.pid,
                     model=model_name,
                     confidence=confidence,
@@ -303,7 +317,106 @@ async def stream_camera(
                         pid=proc.pid,
                     )
 
+    # ──────────────────────────────────────────────────────────────────────────
+    # Cenário 2 — Windows: OpenCV VideoCapture (webcam USB / índice 0)
+    # ──────────────────────────────────────────────────────────────────────────
+    async def frame_generator_opencv():
+        async with _streaming_lock:
+            cap = cv2.VideoCapture(0)
+
+            if not cap.isOpened():
+                log_event(
+                    "stream_opencv_error",
+                    level="ERROR",
+                    reason="Não foi possível abrir a webcam (índice 0). Verifique se a câmera está conectada.",
+                )
+                return
+
+            cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
+            cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
+            cap.set(cv2.CAP_PROP_FPS, framerate)
+
+            log_event(
+                "stream_started",
+                backend="opencv",
+                model=model_name,
+                confidence=confidence,
+                framerate=framerate,
+            )
+
+            loop = asyncio.get_running_loop()
+
+            try:
+                while True:
+                    if await request.is_disconnected():
+                        log_event("stream_client_disconnected", backend="opencv")
+                        break
+
+                    ret, frame_bgr = await loop.run_in_executor(None, cap.read)
+
+                    if not ret:
+                        log_event(
+                            "stream_opencv_read_error",
+                            level="WARN",
+                            reason="cap.read() retornou False",
+                        )
+                        break
+
+                    # OpenCV retorna BGR → converter para RGB para o YOLO/PIL
+                    frame_rgb = cv2.cvtColor(frame_bgr, cv2.COLOR_BGR2RGB)
+
+                    try:
+                        results = model(
+                            frame_rgb,
+                            conf=confidence,
+                            verbose=False,
+                        )
+
+                        annotated = results[0].plot()
+                        annotated_pil = Image.fromarray(annotated)
+
+                        out_buffer = io.BytesIO()
+                        annotated_pil.save(
+                            out_buffer,
+                            format="JPEG",
+                            quality=85,
+                        )
+
+                        jpeg_bytes = out_buffer.getvalue()
+
+                        yield (
+                            b"--frame\r\n"
+                            b"Content-Type: image/jpeg\r\n\r\n"
+                            + jpeg_bytes
+                            + b"\r\n"
+                        )
+
+                    except Exception as e:
+                        log_event(
+                            "stream_frame_error",
+                            level="ERROR",
+                            reason=str(e),
+                        )
+
+            finally:
+                cap.release()
+                log_event("stream_stopped", backend="opencv")
+
+    # Seleciona o gerador correto:
+    # usa rpicam-vid apenas se o binário estiver disponível no PATH
+    # (garante fallback para OpenCV em Docker/Linux genérico sem câmera CSI)
+    has_rpicam = shutil.which("rpicam-vid") is not None
+    generator = frame_generator_rpicam() if has_rpicam else frame_generator_opencv()
+    selected_backend = "rpicam-vid" if has_rpicam else "opencv"
+
+    log_event(
+        "stream_backend_selected",
+        backend=selected_backend,
+        platform=sys.platform,
+        rpicam_found=has_rpicam,
+    )
+
     return StreamingResponse(
-        frame_generator(),
+        generator,
         media_type="multipart/x-mixed-replace; boundary=frame",
     )
