@@ -1,5 +1,6 @@
 import asyncio
 import io
+import random
 import shutil
 import sys
 from time import time
@@ -33,6 +34,8 @@ import asyncio
 # pyrefly: ignore [missing-import]
 import cv2
 
+from services.serial_service import enviar_classe, fechar_porta
+
 
 
 _metrics = {"total": 0, "success": 0, "total_ms": 0.0}
@@ -48,6 +51,14 @@ app.mount(
 
 @app.get("/stream/view")
 async def stream_view(request: Request):
+    classe_fake = random.randint(0, 3)
+    enviado = enviar_classe(classe_fake)
+    if enviado:
+        log_event(
+            "esp32_class_sent",
+            backend="rpicam-vid",
+            classe=classe_fake,
+        )
     return templates.TemplateResponse(
         "index.html",
         {"request": request}
@@ -137,6 +148,26 @@ async def get_metrics():
         successful_requests=_metrics["success"],
         avg_inference_ms=round(avg, 2),
     )
+
+
+@app.post("/esp32/enviar/{classe}")
+async def esp32_enviar(classe: int):
+    """Envia uma classe manualmente para o ESP32 via serial (útil para testes)."""
+    if not (0 <= classe <= 9):
+        raise HTTPException(status_code=400, detail="classe deve estar entre 0 e 9")
+
+    ok = enviar_classe(classe, forcar=True)
+    if not ok:
+        raise HTTPException(
+            status_code=503,
+            detail="Falha ao enviar para o ESP32. Verifique a porta serial.",
+        )
+    return {"status": "ok", "classe": classe}
+
+
+@app.on_event("shutdown")
+async def _shutdown_serial():
+    fechar_porta()
 
 
 @app.get("/stream/camera")
@@ -269,6 +300,15 @@ async def stream_camera(
 
                             jpeg_bytes = out_buffer.getvalue()
 
+                            classe_fake = random.randint(0, 3)
+                            enviado = enviar_classe(classe_fake)
+                            if enviado:
+                                log_event(
+                                    "esp32_class_sent",
+                                    backend="opencv",
+                                    classe=classe_fake,
+                                )
+
                             yield (
                                 b"--frame\r\n"
                                 b"Content-Type: image/jpeg\r\n\r\n"
@@ -383,6 +423,14 @@ async def stream_camera(
                         )
 
                         jpeg_bytes = out_buffer.getvalue()
+                        classe_fake = random.randint(0, 3)
+                        enviado = enviar_classe(classe_fake)
+                        if enviado:
+                            log_event(
+                                "esp32_class_sent",
+                                backend="rpicam-vid",
+                                classe=classe_fake,
+                            )
 
                         yield (
                             b"--frame\r\n"
@@ -402,9 +450,6 @@ async def stream_camera(
                 cap.release()
                 log_event("stream_stopped", backend="opencv")
 
-    # Seleciona o gerador correto:
-    # usa rpicam-vid apenas se o binário estiver disponível no PATH
-    # (garante fallback para OpenCV em Docker/Linux genérico sem câmera CSI)
     has_rpicam = shutil.which("rpicam-vid") is not None
     generator = frame_generator_rpicam() if has_rpicam else frame_generator_opencv()
     selected_backend = "rpicam-vid" if has_rpicam else "opencv"
@@ -416,7 +461,7 @@ async def stream_camera(
         rpicam_found=has_rpicam,
     )
 
-    return StreamingResponse(
-        generator,
-        media_type="multipart/x-mixed-replace; boundary=frame",
+    return Response(
+        content="",
+        media_type="text/plain",
     )

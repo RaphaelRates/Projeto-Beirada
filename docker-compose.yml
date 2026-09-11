@@ -10,6 +10,8 @@ services:
     ports:
       - "8000:8000"
     privileged: true
+    devices: 
+     - /dev/ttyACM0:/dev/ttyACM0  
     volumes:
       - ./beirada_ia/models:/app/models:ro
       - ./beirada_ia/app/output:/app/output
@@ -19,6 +21,10 @@ services:
       - MODEL_NAME=yolov8n.pt
       - MODEL_PATH=/app/models/yolov8n.pt
       - CONFIDENCE=0.4
+      - ESP32_SERIAL_PORT=/dev/ttyACM0
+      - ESP32_SERIAL_BAUD=115200
+      - ESP32_MIN_INTERVAL_S=0.1
+      - ESP32_SERIAL_ENABLED=true
     networks:
       - yolo-net
     restart: unless-stopped
