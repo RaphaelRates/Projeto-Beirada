@@ -31,5 +31,7 @@
     "--background-index",
     "--query-driver=**",
     "--compile-commands-dir=c:\\Users\\ALUNO\\Documents\\dorian\\Projeto-Beirada\\beirada_esp\\ledc_basic\\build"
-  ]
+  ],
+  "idf.portWin": "COM5",
+  "idf.flashType": "JTAG"
 }
