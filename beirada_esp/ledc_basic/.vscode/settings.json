@@ -26,11 +26,11 @@
   "idf.customExtraVars": {
     "IDF_TARGET": "esp32s3"
   },
-  "clangd.path": "C:\\Espressif\\tools\\esp-clang\\esp-20.1.1_20250829\\esp-clang\\bin\\clangd.exe",
+  "clangd.path": "C:\\Espressif\\tools\\esp-clang\\esp-19.1.2_20250312\\esp-clang\\bin\\clangd.exe",
   "clangd.arguments": [
     "--background-index",
     "--query-driver=**",
-    "--compile-commands-dir=c:\\Users\\ALUNO\\Documents\\dorian\\Projeto-Beirada\\beirada_esp\\ledc_basic\\build"
+    "--compile-commands-dir=c:\\Users\\User\\Documents\\dorian\\Projeto-Beirada\\beirada_esp\\ledc_basic\\build"
   ],
   "idf.portWin": "COM5",
   "idf.flashType": "JTAG"

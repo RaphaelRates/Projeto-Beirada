@@ -25,10 +25,7 @@ void app_main(void)
         return;
     }
 
-    // Coloca todos os servos em repouso
-    for (int i = 0; i < SERVO_MAX_COUNT; i++) {
-        servo_desativar((servo_id_t)i);
-    }
+
 
     // 2. Inicializa Filas e Tasks
     if (logica_filas_init() != ESP_OK) {
@@ -37,29 +34,20 @@ void app_main(void)
     }
 
     // --- TESTE DE SIMULAÇÃO DE PEÇAS NO FLUXO ---
-    vTaskDelay(pdMS_TO_TICKS(2000));
-
     servo_abrir(servo1);
-    servo_abrir(servo2);
-    servo_abrir(servo3);
-    vTaskDelay(pdMS_TO_TICKS(3000));
-
-    for (int i = 0; i < SERVO_MAX_COUNT; i++) {
-        servo_desativar((servo_id_t)i);
-    }
+    servo_desativar(servo1);
     
     // Simula: Peça 3 detectada t=0ms (Servo 3 deve acionar em t=4500ms)
-    peca_para_fila(3);
+    for (int i = 0; i < 10; i++) {
+        peca_para_fila(1);
+    }
 
     // Simula: Peça 1 detectada t=500ms (Servo 1 deve acionar em t=2000ms, ANTES da Peça 3!)
-    vTaskDelay(pdMS_TO_TICKS(500));
-    peca_para_fila(1);
 
-    peca_para_fila(2);
 
-    for (int i = 0; i < 30; i++) {
+   /* for (int i = 0; i < 30; i++) {
         peca_para_fila(rand() % 3 + 1); // Peças aleatórias entre 1 e 3
         vTaskDelay(pdMS_TO_TICKS(1500));
-    }
+    }*/
 
 }

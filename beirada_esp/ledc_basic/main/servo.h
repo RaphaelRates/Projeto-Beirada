@@ -4,11 +4,16 @@
 #include <stdint.h>
 #include "esp_err.h"
 #include "driver/ledc.h"
+#include "driver/gpio.h"
 
 // Definição dos Pinos
 #define SERVO1_GPIO 20 // vermelho
 #define SERVO2_GPIO 7 // verde
 #define SERVO3_GPIO 26 // azul
+
+#define SENSOR1_GPIO 4
+#define SENSOR2_GPIO 5
+#define SENSOR3_GPIO 6
 
 // Parâmetros do Sinal PWM para Servos Padrão (50Hz)
 #define SERVO_FREQ          50
@@ -18,7 +23,7 @@
 #define SERVO_MIN_PULSE_US  500   // Pulso mínimo em microsegundos (0 graus)
 #define SERVO_MAX_PULSE_US  2500  // Pulso máximo em microsegundos (180 graus)
 
-// Identificador Amigável para os Servos/Atuadores da Esteira
+// Identificador para os Servos/Atuadores da Esteira
 typedef enum {
     servo1 = 0,
     servo2 = 1,
@@ -26,33 +31,13 @@ typedef enum {
     SERVO_MAX_COUNT
 } servo_id_t;
 
-/**
- * @brief Inicializa os timers e canais LEDC configurados para os servos.
- * @return esp_err_t ESP_OK em caso de sucesso.
- */
+
 esp_err_t servo_init(void);
-
-/**
- * @brief Define o ângulo de um servo específico.
- * 
- * @param id Identificador do servo (servo1, servo2, etc).
- * @param angle_deg Ângulo desejado em graus (0 a 180).
- * @return esp_err_t ESP_OK em caso de sucesso.
- */
 esp_err_t servo_angulo(servo_id_t id, uint8_t angle_deg);
-
-/**
- * @brief Desativa um servo específico.
- * 
- * @param id Identificador do servo (servo1, servo2, etc).
- */
 void servo_desativar(servo_id_t id);
-
-/**
- * @brief Ativa um servo específico para a posição de abertura.
- * 
- * @param id Identificador do servo (servo1, servo2, etc).
- */
 void servo_abrir(servo_id_t id);
+
+// Nova função para ler a presença da peça no sensor
+bool sensor_objeto_presente(servo_id_t id);
 
 #endif // SERVO_H
