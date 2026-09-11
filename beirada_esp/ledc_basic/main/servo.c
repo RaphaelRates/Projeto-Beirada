@@ -1,7 +1,7 @@
 #include "servo.h"
 #include "esp_log.h"
 
-/* static const char *TAG = "SERVO_CONTROL";
+static const char *TAG = "SERVO_CONTROL";
 
 // Estrutura para associar o ID do servo ao pino e ao canal do LEDC
 typedef struct {
@@ -106,9 +106,9 @@ void servo_abrir(servo_id_t id)
     } else {
         servo_angulo(id, 50);
     }
-} */
+} 
 
-#include "servo.h"
+/*#include "servo.h"
 #include "driver/gpio.h"
 #include "esp_log.h"
 
@@ -167,4 +167,4 @@ void servo_abrir(servo_id_t id)
         gpio_set_level(servo_gpios[id], 1); // ACENDE O LED
         ESP_LOGI(TAG, "LED %d ACESO (Servo Acionado)", id + 1);
     }
-}
+}*/
