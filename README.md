@@ -209,13 +209,28 @@ dvc pull beirada_ia/models/yolov8n.pt.dvc
 # 3. Subir os serviços (API, stream e cliente de teste)
 docker compose up --build
 ```
+Antes de iniciar os serviços, é necessário garantir que o Raspberry Pi possui Docker, Docker Compose e DVC instalados e configurados.
 
-Isso inicia:
+Também é necessário conectar a câmera ao Raspberry Pi e verificar se ela está disponível para o serviço de streaming.
+
+O `docker-compose.yml` inicia:
 - **yolo-api** -- `http://localhost:8000` (rotas `/predict`, `/health`, `/metrics`, `/stream/camera`)
 - **yolo-stream** -- `http://localhost:5000` (stream MJPEG anotado)
 - **yolo-client** -- executa automaticamente inferências de teste com as imagens em `beirada_ia/client/images/`
 
 > A API espera acesso ao dispositivo serial `/dev/ttyACM0` (configurável via variável de ambiente `ESP32_SERIAL_PORT`) para se comunicar com o ESP32-S3.
+
+Após iniciar os serviços, o funcionamento da API pode ser verificado acessando:
+
+```http://localhost:8000/health```
+
+Os logs dos containers podem ser acompanhados com:
+
+```docker compose logs -f```
+
+Para encerrar os serviços:
+
+```docker compose down```
 
 ### 2. Firmware do ESP32-S3 (controle dos servomotores)
 
