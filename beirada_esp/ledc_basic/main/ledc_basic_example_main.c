@@ -1,12 +1,5 @@
-/* LEDC (LED Controller) basic example
-
-   This example code is in the Public Domain (or CC0 licensed, at your option.)
-
-   Unless required by applicable law or agreed to in writing, this
-   software is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
-   CONDITIONS OF ANY KIND, either express or implied.
-*/
 #include <stdio.h>
+#include <stdlib.h>
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "esp_log.h"
@@ -36,30 +29,66 @@ void app_main(void)
         return;
     }
 
-    // --- TESTE DE SIMULAÇÃO DE PEÇAS NO FLUXO ---
+    // --- TESTE INICIAL (uma vez só, para validar servos) ---
     vTaskDelay(pdMS_TO_TICKS(2000));
-
     servo_abrir(servo1);
     servo_abrir(servo2);
     servo_abrir(servo3);
     vTaskDelay(pdMS_TO_TICKS(3000));
-
     for (int i = 0; i < SERVO_MAX_COUNT; i++) {
         servo_desativar((servo_id_t)i);
     }
-    
-    // Simula: Peça 3 detectada t=0ms (Servo 3 deve acionar em t=4500ms)
-    peca_para_fila(3);
 
-    // Simula: Peça 1 detectada t=500ms (Servo 1 deve acionar em t=2000ms, ANTES da Peça 3!)
-    vTaskDelay(pdMS_TO_TICKS(500));
-    peca_para_fila(1);
+    ESP_LOGI(TAG, "Iniciando loop infinito de simulação...");
 
-    peca_para_fila(2);
+    // --- LOOP INFINITO DE CENÁRIOS ---
+    uint32_t ciclo = 0;
+    while (1) {
+        ciclo++;
+        ESP_LOGI(TAG, "=== Ciclo %lu ===", (unsigned long)ciclo);
 
-    for (int i = 0; i < 30; i++) {
-        peca_para_fila(rand() % 3 + 1); // Peças aleatórias entre 1 e 3
-        vTaskDelay(pdMS_TO_TICKS(1500));
+        // Cenário A: ordem "fora de ordem" (3 chega antes de 1)
+        // Testa se o servo 1 dispara ANTES do servo 3
+        ESP_LOGI(TAG, "Cenario A: pecas 3 -> 1 -> 2");
+        peca_para_fila(3);
+        vTaskDelay(pdMS_TO_TICKS(500));
+        peca_para_fila(1);
+        vTaskDelay(pdMS_TO_TICKS(500));
+        peca_para_fila(2);
+
+        // Espera o cenário A terminar de ser processado
+        vTaskDelay(pdMS_TO_TICKS(6000));
+
+        // Cenário B: sequência normal crescente
+        ESP_LOGI(TAG, "Cenario B: pecas 1 -> 2 -> 3");
+        for (int i = 1; i <= SERVO_MAX_COUNT; i++) {
+            peca_para_fila(i);
+            vTaskDelay(pdMS_TO_TICKS(800));
+        }
+        vTaskDelay(pdMS_TO_TICKS(6000));
+
+        // Cenário C: rajada de peças aleatórias
+        ESP_LOGI(TAG, "Cenario C: rajada aleatoria");
+        for (int i = 0; i < 10; i++) {
+            int peca = (rand() % SERVO_MAX_COUNT) + 1;
+            ESP_LOGI(TAG, "  -> peca %d", peca);
+            peca_para_fila(peca);
+            vTaskDelay(pdMS_TO_TICKS(700));
+        }
+        vTaskDelay(pdMS_TO_TICKS(8000));
+
+        // Cenário D: mesma peça várias vezes seguidas (stress da fila)
+        ESP_LOGI(TAG, "Cenario D: mesma peca repetida");
+        int alvo = (rand() % SERVO_MAX_COUNT) + 1;
+        for (int i = 0; i < 4; i++) {
+            ESP_LOGI(TAG, "  -> peca %d", alvo);
+            peca_para_fila(alvo);
+            vTaskDelay(pdMS_TO_TICKS(1000));
+        }
+        vTaskDelay(pdMS_TO_TICKS(8000));
+
+        // Pausa entre ciclos completos
+        ESP_LOGI(TAG, "Fim do ciclo %lu, aguardando...", (unsigned long)ciclo);
+        vTaskDelay(pdMS_TO_TICKS(3000));
     }
-
 }
