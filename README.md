@@ -27,9 +27,16 @@
 ## Componentes da Solução
 
 ### Hardware
+| Componente | Função na arquitetura |
+|---|---|
+| Câmera | Captura das imagens das peças na esteira (entrada do pipeline de visão) |
+| Raspberry Pi 5 | Executa a API de inferência (YOLOv8n) e o servidor de streaming |
+| Servomotores | Atuação física, desviando cada peça para o caminho correspondente |
 
 ### Software
-
+| Camada | Tecnologia | Versão | Função |
+|---|---|---|---|
+| Modelo de IA | YOLOv8n (Ultralytics) | 8.2.0 | Detecção e classificação das peças em tempo real |
 ---
 
 ## Dependências
