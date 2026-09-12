@@ -42,13 +42,13 @@ O Projeto Beirada é uma solução embarcada para identificação e triagem auto
 | Camada | Tecnologia | Versão | Função |
 |---|---|---|---|
 | Modelo de IA | YOLOv8n (Ultralytics) | 8.2.0 | Detecção e classificação das peças em tempo real |
-| API de inferência |  |  |  |
-| Streaming |  |  |  |
-| Pré-processamento |  |  |  |
-| Comunicação IoT |  |  |  |
-| Firmware embarcado |  |  |  |
-| Versionamento de modelo |  |  |  |
-| Orquestração |  |  |  |
+| API de inferência | FastAPI + Uvicorn | 0.111.0 / 0.29.0 | Expõe `/predict`, `/predict/image`, `/predict/batch`, `/health`, `/metrics` |
+| Streaming | Flask | 3.1.3 | Servidor MJPEG com detecções sobrepostas (`stream/mjpeg_server.py`) |
+| Pré-processamento | OpenCV + Pillow + NumPy | 4.9.0.80 / 11.0.0 / 1.26.4 | Letterbox, resize e filtros de imagem antes da inferência |
+| Comunicação IoT | pyserial | 3.5.0 | Envio da classe detectada ao ESP32-S3 via USB serial |
+| Firmware embarcado | ESP-IDF / FreeRTOS (C) | -- | Lógica de filas por servo e acionamento via LEDC/GPIO |
+| Versionamento de modelo | DVC | -- | Rastreamento do arquivo `yolov8n.pt` fora do Git |
+| Orquestração | Docker Compose | -- | Sobe os serviços `yolo-api`, `yolo-stream` e `yolo-client` |
 ---
 
 ## Dependências
@@ -73,8 +73,15 @@ Pillow==10.3.0
 ```
 
 ### Firmware - ESP32-S3
+- **ESP-IDF** (framework oficial Espressif)
+- **FreeRTOS** (filas e tasks por servo; já incluso no ESP-IDF)
+- Driver **LEDC** (controle de PWM/GPIO dos servomotores)
 
 ### Plataformas e ferramentas externas
+- **Docker** e **Docker Compose** (orquestração dos serviços `yolo-api`, `yolo-stream`, `yolo-client`)
+- **rpicam-apps** (`rpicam-vid`/`rpicam-still`) -- captura via câmera CSI na Raspberry Pi
+- **DVC** -- versionamento do modelo `yolov8n.pt`
+- Porta serial USB para comunicação com o ESP32-S3
   
 ---
 
