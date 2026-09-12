@@ -18,9 +18,13 @@
 
 ## Visão Geral
 
+O Projeto Beirada é uma solução embarcada para identificação e triagem automática de componentes em uma linha de produção. Uma câmera captura continuamente as peças em movimento, uma API de inferência (YOLOv8n) as classifica em tempo real, e o resultado é transmitido a um microcontrolador ESP32-S3, responsável por acionar o servomotor correto no momento exato
+
 ---
 
 ## Diagrama de Arquitetura
+
+(INSIRA DIAGRAMA)
 
 ---
 
@@ -49,6 +53,29 @@
 
 ## Dependências
 
+### Python - API e Streaming
+```
+fastapi==0.111.0
+uvicorn[standard]==0.29.0
+ultralytics==8.2.0
+Pillow==11.0.0
+numpy==1.26.4
+httpx==0.27.0
+opencv-python-headless==4.9.0.80
+flask==3.1.3
+pyserial==3.5.0
+```
+
+### Python - Cliente de teste
+```
+httpx==0.27.0
+Pillow==10.3.0
+```
+
+### Firmware - ESP32-S3
+
+### Plataformas e ferramentas externas
+  
 ---
 
 ## Estrutura das Pastas
@@ -125,3 +152,5 @@ Antes de rodar o projeto, é necessário ter instalado:
 ---
 
 ## Instruções de Configuração (Setup)
+
+...
