@@ -18,7 +18,7 @@
 
 ## Visão Geral
 
-O Projeto Beirada é uma solução embarcada para identificação e triagem automática de componentes em uma linha de produção. Uma câmera captura continuamente as peças em movimento, uma API de inferência (YOLOv8n) as classifica em tempo real, e o resultado é transmitido a um microcontrolador ESP32-S3, responsável por acionar o servomotor correto no momento exato
+O Projeto Beirada é uma solução embarcada para identificação e triagem automática de componentes em uma linha de produção. Uma câmera captura continuamente as peças em movimento, uma API de inferência (YOLOv8n) as classifica em tempo real, e o resultado é transmitido a um microcontrolador ESP32-S3, responsável por acionar o servomotor correto no momento exato.
 
 ---
 
@@ -164,4 +164,4 @@ Antes de rodar o projeto, é necessário ter instalado:
 
 ## Instruções de Configuração (Setup)
 
-...
+(inserir intruções)
