@@ -24,7 +24,35 @@ O Projeto Beirada é uma solução embarcada para identificação e triagem auto
 
 ## Diagrama de Arquitetura
 
-(INSIRA DIAGRAMA)
+```mermaid
+flowchart LR
+    subgraph RPI["Raspberry Pi 5"]
+        CAM["Câmera<br>(rpicam-vid / OpenCV)"]
+        PRE["Preprocessor<br>(letterbox, resize, filtros)"]
+        YOLO["Modelo YOLOv8n<br>(ultralytics)"]
+        API["API FastAPI<br>(yolo-api)"]
+        STREAM["Servidor MJPEG<br>(Flask - yolo-stream)"]
+        SERIAL["serial_service.py<br>(pyserial)"]
+    end
+
+    subgraph CONECT["Conectividade"]
+        USB["Porta Serial USB<br>/dev/ttyACM0 - 115200 baud<br>protocolo ASCII 'N\\n'"]
+    end
+
+    subgraph ESP["ESP32-S3 (ESP-IDF / FreeRTOS)"]
+        FILAS["Filas por Servo<br>(cálculo do tempo de percurso)"]
+        SERVOS["Servomotores 1, 2 e 3<br>(LEDC / GPIO)"]
+    end
+
+    CAM -->|Frame capturado| PRE
+    PRE -->|Frame normalizado| YOLO
+    YOLO -->|Detecções: classe, bbox, confiança| API
+    API -->|Frame anotado| STREAM
+    API -->|Classe detectada| SERIAL
+    SERIAL -->|Envia classe| USB
+    USB -->|Recebe classe| FILAS
+    FILAS -->|Aciona no tempo calculado| SERVOS
+```
 
 ---
 
