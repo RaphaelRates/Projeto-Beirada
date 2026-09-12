@@ -41,7 +41,7 @@ services:
   yolo-stream:
     build:
       context: .
-      dockerfile: beirada_ia/Dockerfile.stream
+      dockerfile: beirada_ia/Dockerfile.api
     container_name: yolo-stream
     ports:
       - "5000:5000"
@@ -53,12 +53,12 @@ services:
     environment:
       - MODEL_NAME=yolov8n.pt
       - MODEL_PATH=/app/models/yolov8n.pt
-      - CONFIDENCE=0.4
+      - CONFIDENCE=0.25
     command: >
       python3 stream/mjpeg_server.py
       --device 0
       --infer-every 3
-      --infer-size 320
+      --infer-size 240
       --port 5000
     networks:
       - yolo-net
