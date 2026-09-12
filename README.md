@@ -1,6 +1,12 @@
-# Projeto-Beirada
+# Projeto V.I.T.A. - Visão Inteligente de Triagem Automática
 
-**Equipe:** Computação na Beirada
+**Equipe:** Computação na Beirada:
+
+- Dorian Dayvid Gomes Feitosa
+- Esdras Rodrigues de Andrade
+- Manuela Menezes Alves
+- Raphael Sousa Rabelo Rates
+
 
 ---
 
@@ -18,13 +24,13 @@
 
 ## Visão Geral
 
-O Projeto Beirada é uma solução embarcada para identificação e triagem automática de componentes em uma linha de produção. Uma câmera captura continuamente as peças em movimento, uma API de inferência (YOLOv8n) as classifica em tempo real, e o resultado é transmitido a um microcontrolador ESP32-S3, responsável por acionar o servomotor correto no momento exato.
+O Projeto V.I.T.A. é uma solução embarcada para identificação e triagem automática de componentes em uma linha de produção. Uma câmera captura continuamente as peças em movimento, uma API de inferência (YOLOv8n) as classifica em tempo real, e o resultado é transmitido a um microcontrolador ESP32-S3, responsável por acionar o servomotor correto no momento exato.
 
 ---
 
 ## Diagrama de Arquitetura
 
-O diagrama representa as duas frentes integradas da solução: **visão computacional** (câmera → pré-processamento → inferência → resultado) e **IoT/embarcado** (comunicação serial → fila de tempo → atuação física nos servos).
+O diagrama representa as duas frentes integradas da solução: **visão computacional** (câmera → pré-processamento → inferência → resultado) e **IoT/embarcado** (comunicação serial → fila → atuação física nos servos).
 
 ```mermaid
 flowchart LR
@@ -231,3 +237,9 @@ idf.py -p <PORTA_SERIAL> flash monitor
 ```
 
 > **Nota:** os experimentos em `beirada_ia/app/preprocessing/experiments/` e as versões `v1_naive.py` / `v2_threaded.py` do streaming documentam as iterações de otimização já testadas pela equipe, mas não fazem parte do fluxo de produção (`mjpeg_server.py` + `v3_optimized.py`).
+
+### 3. Montagem física (servomotores + sensor infravermelho E18-D80NK)
+
+- Posicionar servomotor aproximadamente 20cm da esteira alvo do objeto, do lado oposto.
+
+- Posicionar sensor E18-D80NK logo antes do servo motor, inclinado a 45° da esteira, no mesmo sentido de funcionamento da mesma, de forma que acompanhe a peça até que ela seja movida para a esteira paralela.
