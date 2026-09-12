@@ -194,4 +194,40 @@ Antes de rodar o projeto, é necessário ter instalado:
 
 ## Instruções de Configuração (Setup)
 
-(inserir intruções)
+A configuração do sistema é dividida em duas etapas principais: preparação do ambiente de visão computacional no Raspberry Pi e configuração do firmware responsável pelo controle dos atuadores no ESP32-S3.
+
+### 1. API de visão computacional + streaming (Raspberry Pi)
+
+```bash
+# 1. Clonar o repositório
+git clone <url-do-repositorio>
+cd Projeto-Beirada
+
+# 2. Recuperar o modelo YOLOv8n versionado via DVC
+dvc pull beirada_ia/models/yolov8n.pt.dvc
+
+# 3. Subir os serviços (API, stream e cliente de teste)
+docker compose up --build
+```
+
+Isso inicia:
+- **yolo-api** -- `http://localhost:8000` (rotas `/predict`, `/health`, `/metrics`, `/stream/camera`)
+- **yolo-stream** -- `http://localhost:5000` (stream MJPEG anotado)
+- **yolo-client** -- executa automaticamente inferências de teste com as imagens em `beirada_ia/client/images/`
+
+> A API espera acesso ao dispositivo serial `/dev/ttyACM0` (configurável via variável de ambiente `ESP32_SERIAL_PORT`) para se comunicar com o ESP32-S3.
+
+### 2. Firmware do ESP32-S3 (controle dos servomotores)
+
+```bash
+cd beirada_esp/ledc_basic
+
+# Configurar e compilar com o ESP-IDF
+idf.py set-target esp32s3
+idf.py build
+
+# Gravar no dispositivo e acompanhar o log serial
+idf.py -p <PORTA_SERIAL> flash monitor
+```
+
+> **Nota:** os experimentos em `beirada_ia/app/preprocessing/experiments/` e as versões `v1_naive.py` / `v2_threaded.py` do streaming documentam as iterações de otimização já testadas pela equipe, mas não fazem parte do fluxo de produção (`mjpeg_server.py` + `v3_optimized.py`).
