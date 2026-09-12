@@ -220,18 +220,6 @@ O `docker-compose.yml` inicia:
 
 > A API espera acesso ao dispositivo serial `/dev/ttyACM0` (configurável via variável de ambiente `ESP32_SERIAL_PORT`) para se comunicar com o ESP32-S3.
 
-Após iniciar os serviços, o funcionamento da API pode ser verificado acessando:
-
-```http://localhost:8000/health```
-
-Os logs dos containers podem ser acompanhados com:
-
-```docker compose logs -f```
-
-Para encerrar os serviços:
-
-```docker compose down```
-
 ### 2. Firmware do ESP32-S3 (controle dos servomotores)
 
 ```bash
