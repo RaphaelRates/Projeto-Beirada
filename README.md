@@ -215,8 +215,11 @@ dvc pull beirada_ia/models/yolov8n.pt.dvc
 # 3. Subir os serviços (API, stream e cliente de teste)
 docker compose up --build
 ```
+Antes de iniciar os serviços, é necessário garantir que o Raspberry Pi possui Docker, Docker Compose e DVC instalados e configurados.
 
-Isso inicia:
+Também é necessário conectar a câmera ao Raspberry Pi e verificar se ela está disponível para o serviço de streaming.
+
+O `docker-compose.yml` inicia:
 - **yolo-api** -- `http://localhost:8000` (rotas `/predict`, `/health`, `/metrics`, `/stream/camera`)
 - **yolo-stream** -- `http://localhost:5000` (stream MJPEG anotado)
 - **yolo-client** -- executa automaticamente inferências de teste com as imagens em `beirada_ia/client/images/`
