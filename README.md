@@ -153,8 +153,12 @@ Projeto-Beirada/
 ## Pré-requisitos
 
 Antes de rodar o projeto, é necessário ter instalado:
-- ....
-- ....
+
+- **Docker** e **Docker Compose**
+- **ESP-IDF** (para compilar e gravar o firmware do ESP32-S3)
+- Acesso a uma câmera compatível (CSI via `rpicam-*` na Raspberry Pi, ou webcam USB via OpenCV)
+- Acesso à porta serial USB do ESP32-S3
+- **DVC** instalado, caso seja necessário baixar/versionar o modelo `yolov8n.pt`
 
 ---
 
