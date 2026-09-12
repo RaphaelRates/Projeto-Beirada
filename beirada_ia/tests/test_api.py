@@ -4,8 +4,10 @@ Cobertura: smoke test, unit tests e integration test da YOLO Inference API.
 Pré-requisito: models/yolov8n.pt presente no sistema de arquivos.
 """
 import base64
+import inspect
 import io
 import os
+import threading
 
 # Ajusta o PYTHONPATH: raiz do projeto (para "app" ser pacote) e app/ (para os imports internos de main.py, como "from schemas import ...")
 import sys
@@ -23,9 +25,37 @@ sys.path.insert(0, str(Path(__file__).parent.parent / "app"))
 os.environ.setdefault("MODEL_NAME", "yolov8n.pt")
 
 
-from app import _decode_image, app
+from app import _decode_image, app, stream_camera
+
+try:
+    from app import OptimizedCamera, RealtimeDetector
+except Exception:
+    OptimizedCamera = None
+    RealtimeDetector = None
 
 client = TestClient(app)
+
+
+def test_stream_camera_route_supports_stream_optimization_params():
+    params = inspect.signature(stream_camera).parameters
+    assert "infer_every" in params
+    assert "jpeg_quality" in params
+
+
+def test_stream_camera_route_exposes_optimized_stream_classes():
+    assert OptimizedCamera is not None
+    assert RealtimeDetector is not None
+
+
+def test_optimized_camera_read_returns_latest_frame_from_latest_slot():
+    assert OptimizedCamera is not None
+    camera = OptimizedCamera.__new__(OptimizedCamera)
+    camera._latest_frame = np.zeros((4, 4, 3), dtype=np.uint8)
+    camera._latest_lock = threading.Lock()
+    camera.frames_out = 0
+
+    latest = camera.read(timeout=0.01)
+    assert latest is camera._latest_frame
 
 
 ASSETS = Path(__file__).parent / "assets"

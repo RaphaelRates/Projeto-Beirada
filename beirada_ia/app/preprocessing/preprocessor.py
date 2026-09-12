@@ -14,8 +14,6 @@ import numpy as np
 from preprocessing.utils.letterbox import letterbox
 
 
-
-
 @dataclass
 class PreprocessConfig:
     """

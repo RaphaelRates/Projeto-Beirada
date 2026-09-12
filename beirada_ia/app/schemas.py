@@ -11,8 +11,10 @@ class PredictRequest(BaseModel):
         None,
         description="URL pública acessível a partir do container"
     )
-    confidence: float = Field(0.25, ge=0.0, le=1.0,
+    confidence: float = Field(0.10, ge=0.0, le=1.0,
         description="Limiar mínimo de confiança (0–1)")
+    iou: float = Field(0.35, ge=0.0, le=1.0,
+        description="Limiar de sobreposição entre boxes na deteção YOLO")
     model_name: str = Field("yolov8n.pt",
         description="Nome do arquivo de pesos dentro de /app/models/")
 
@@ -30,7 +32,8 @@ class PredictResponse(BaseModel):
 
 class BatchPredictRequest(BaseModel):
     images_base64: list[str]
-    confidence: float = 0.25
+    confidence: float = 0.10
+    iou: float = 0.35
     model_name: str = "yolov8n.pt"
 
 class BatchPredictResponse(BaseModel):
