@@ -31,12 +31,20 @@
 |---|---|
 | Câmera | Captura das imagens das peças na esteira (entrada do pipeline de visão) |
 | Raspberry Pi 5 | Executa a API de inferência (YOLOv8n) e o servidor de streaming |
+| ESP32-S3 | Recebe a classe detectada via serial e controla os servomotores |
 | Servomotores | Atuação física, desviando cada peça para o caminho correspondente |
 
 ### Software
 | Camada | Tecnologia | Versão | Função |
 |---|---|---|---|
 | Modelo de IA | YOLOv8n (Ultralytics) | 8.2.0 | Detecção e classificação das peças em tempo real |
+| API de inferência |  |  |  |
+| Streaming |  |  |  |
+| Pré-processamento |  |  |  |
+| Comunicação IoT |  |  |  |
+| Firmware embarcado |  |  |  |
+| Versionamento de modelo |  |  |  |
+| Orquestração |  |  |  |
 ---
 
 ## Dependências
