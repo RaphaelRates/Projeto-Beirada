@@ -24,6 +24,8 @@ O Projeto Beirada é uma solução embarcada para identificação e triagem auto
 
 ## Diagrama de Arquitetura
 
+O diagrama representa as duas frentes integradas da solução: **visão computacional** (câmera → pré-processamento → inferência → resultado) e **IoT/embarcado** (comunicação serial → fila de tempo → atuação física nos servos).
+
 ```mermaid
 flowchart LR
     subgraph RPI["Raspberry Pi 5"]
