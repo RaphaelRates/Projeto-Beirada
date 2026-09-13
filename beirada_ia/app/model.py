@@ -35,4 +35,4 @@ def load_model(model_name: str) -> YOLO:
 
 
 def get_default_model_name() -> str:
-    return os.getenv("MODEL_NAME", "yolov8n.pt")
+    return os.getenv("MODEL_NAME", "yolo-epi.pt")

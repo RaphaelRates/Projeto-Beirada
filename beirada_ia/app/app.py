@@ -342,8 +342,8 @@ def predict_image(request: PredictRequest):
 @app.post("/predict/camera", response_model=PredictResponse)
 def predict_from_camera(
     device_id: int = Query(0, description="Índice do dispositivo (/dev/videoX)"),
-    confidence: float = Query(0.25, ge=0.0, le=1.0, description="Limiar de confiança"),
-    model_name: str = Query("yolov8n.pt", description="Modelo YOLO a ser utilizado"),
+    confidence: float = Query(0.80, ge=0.0, le=1.0, description="Limiar de confiança"),
+    model_name: str = Query("yolo-epi.pt", description="Modelo YOLO a ser utilizado"),
 ):
     """Captura uma foto pela câmera, executa inferência e retorna as detecções."""
     request_id = str(uuid.uuid4())[:8]
@@ -387,8 +387,8 @@ def predict_from_camera(
 @app.get("/predict/camera/image", responses={200: {"content": {"image/jpeg": {}}}})
 def predict_from_camera_image(
     device_id: int = Query(0, description="Índice do dispositivo (/dev/videoX)"),
-    confidence: float = Query(0.25, ge=0.0, le=1.0, description="Limiar de confiança"),
-    model_name: str = Query("yolov8n.pt", description="Modelo YOLO a ser utilizado"),
+    confidence: float = Query(0.80, ge=0.0, le=1.0, description="Limiar de confiança"),
+    model_name: str = Query("yolo-epi.pt", description="Modelo YOLO a ser utilizado"),
 ):
     """Captura imagem da câmera, executa inferência e retorna JPEG anotado."""
     request_id = str(uuid.uuid4())[:8]
@@ -508,8 +508,8 @@ async def get_metrics():
 @app.get("/stream/camera")
 async def stream_camera(
     request: Request,
-    confidence: float = Query(0.25, ge=0.0, le=1.0),
-    model_name: str = Query("yolov8n.pt"),
+    confidence: float = Query(0.80, ge=0.0, le=1.0),
+    model_name: str = Query("yolo-epi.pt"),
     framerate: int = Query(20, ge=1, le=30),
 ):
     """Transmite vídeo contínuo da câmera com detecções YOLO em todo frame."""

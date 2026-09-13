@@ -1,7 +1,7 @@
 """
 tests/test_api.py
 Cobertura: smoke test, unit tests e integration test da YOLO Inference API.
-Pré-requisito: models/yolov8n.pt presente no sistema de arquivos.
+Pré-requisito: models/yolo-epi.pt presente no sistema de arquivos.
 """
 import base64
 import inspect
@@ -22,7 +22,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 sys.path.insert(0, str(Path(__file__).parent.parent / "app"))
 
 
-os.environ.setdefault("MODEL_NAME", "yolov8n.pt")
+os.environ.setdefault("MODEL_NAME", "yolo-epi.pt")
 
 
 from app import _decode_image, app, stream_camera

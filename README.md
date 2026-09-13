@@ -24,7 +24,7 @@
 
 ## Visão Geral
 
-O Projeto V.I.T.A. é uma solução embarcada para identificação e triagem automática de componentes em uma linha de produção. Uma câmera captura continuamente as peças em movimento, uma API de inferência (YOLOv8n) as classifica em tempo real, e o resultado é transmitido a um microcontrolador ESP32-S3, responsável por acionar o servomotor correto no momento exato.
+O Projeto V.I.T.A. é uma solução embarcada para identificação e triagem automática de componentes em uma linha de produção. Uma câmera captura continuamente as peças em movimento, uma API de inferência (yolo-epi) as classifica em tempo real, e o resultado é transmitido a um microcontrolador ESP32-S3, responsável por acionar o servomotor correto no momento exato.
 
 ---
 
@@ -37,7 +37,7 @@ flowchart LR
     subgraph RPI["Raspberry Pi 5"]
         CAM["Câmera<br>(rpicam-vid / OpenCV)"]
         PRE["Preprocessor<br>(letterbox, resize, filtros)"]
-        YOLO["Modelo YOLOv8n<br>(ultralytics)"]
+        YOLO["Modelo yolo-epi<br>(ultralytics)"]
         API["API FastAPI<br>(yolo-api)"]
         STREAM["Servidor MJPEG<br>(Flask - yolo-stream)"]
         SERIAL["serial_service.py<br>(pyserial)"]
@@ -70,20 +70,20 @@ flowchart LR
 | Componente | Função na arquitetura |
 |---|---|
 | Câmera | Captura das imagens das peças na esteira (entrada do pipeline de visão) |
-| Raspberry Pi 5 | Executa a API de inferência (YOLOv8n) e o servidor de streaming |
+| Raspberry Pi 5 | Executa a API de inferência (yolo-epi) e o servidor de streaming |
 | ESP32-S3 | Recebe a classe detectada via serial e controla os servomotores |
 | Servomotores | Atuação física, desviando cada peça para o caminho correspondente |
 
 ### Software
 | Camada | Tecnologia | Versão | Função |
 |---|---|---|---|
-| Modelo de IA | YOLOv8n (Ultralytics) | 8.2.0 | Detecção e classificação das peças em tempo real |
+| Modelo de IA | yolo-epi (Ultralytics) | 8.2.0 | Detecção e classificação das peças em tempo real |
 | API de inferência | FastAPI + Uvicorn | 0.111.0 / 0.29.0 | Expõe `/predict`, `/predict/image`, `/predict/batch`, `/health`, `/metrics` |
 | Streaming | Flask | 3.1.3 | Servidor MJPEG com detecções sobrepostas (`stream/mjpeg_server.py`) |
 | Pré-processamento | OpenCV + Pillow + NumPy | 4.9.0.80 / 11.0.0 / 1.26.4 | Letterbox, resize e filtros de imagem antes da inferência |
 | Comunicação IoT | pyserial | 3.5.0 | Envio da classe detectada ao ESP32-S3 via USB serial |
 | Firmware embarcado | ESP-IDF / FreeRTOS (C) | -- | Lógica de filas por servo e acionamento via LEDC/GPIO |
-| Versionamento de modelo | DVC | -- | Rastreamento do arquivo `yolov8n.pt` fora do Git |
+| Versionamento de modelo | DVC | -- | Rastreamento do arquivo `yolo-epi.pt` fora do Git |
 | Orquestração | Docker Compose | -- | Sobe os serviços `yolo-api`, `yolo-stream` e `yolo-client` |
 ---
 
@@ -116,7 +116,7 @@ Pillow==10.3.0
 ### Plataformas e ferramentas externas
 - **Docker** e **Docker Compose** (orquestração dos serviços `yolo-api`, `yolo-stream`, `yolo-client`)
 - **rpicam-apps** (`rpicam-vid`/`rpicam-still`) -- captura via câmera CSI na Raspberry Pi
-- **DVC** -- versionamento do modelo `yolov8n.pt`
+- **DVC** -- versionamento do modelo `yolo-epi.pt`
 - Porta serial USB para comunicação com o ESP32-S3
   
 ---
@@ -159,7 +159,7 @@ Projeto-Beirada/
 │   │   └── client.py                 
 │   │
 │   ├── models/
-│   │   └── yolov8n.pt.dvc           
+│   │   └── yolo-epi.pt.dvc           
 │   │
 │   ├── scripts/
 │   │   ├── deploy.sh                 
@@ -194,7 +194,7 @@ Antes de rodar o projeto, é necessário ter instalado:
 - **ESP-IDF** (para compilar e gravar o firmware do ESP32-S3)
 - Acesso a uma câmera compatível (CSI via `rpicam-*` na Raspberry Pi, ou webcam USB via OpenCV)
 - Acesso à porta serial USB do ESP32-S3
-- **DVC** instalado, caso seja necessário baixar/versionar o modelo `yolov8n.pt`
+- **DVC** instalado, caso seja necessário baixar/versionar o modelo `yolo-epi.pt`
 
 ---
 
@@ -209,8 +209,8 @@ A configuração do sistema é dividida em duas etapas principais: preparação 
 git clone <url-do-repositorio>
 cd Projeto-Beirada
 
-# 2. Recuperar o modelo YOLOv8n versionado via DVC
-dvc pull beirada_ia/models/yolov8n.pt.dvc
+# 2. Recuperar o modelo yolo-epi versionado via DVC
+dvc pull beirada_ia/models/yolo-epi.pt.dvc
 
 # 3. Subir os serviços (API, stream e cliente de teste)
 docker compose up --build
