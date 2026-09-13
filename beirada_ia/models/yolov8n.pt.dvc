@@ -1,5 +1,5 @@
 outs:
-- md5: 582bf9ade8fad50042feb017f5436713
+- md5: 5ab82b03b299dda09fa59b52822f21f0
   size: 6219882
   hash: md5
   path: yolov8n.pt
