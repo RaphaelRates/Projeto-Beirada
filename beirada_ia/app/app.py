@@ -536,7 +536,7 @@ async def stream_camera(
     request: Request,
     confidence: float = Query(0.60, ge=0.0, le=1.0),
     model_name: str = Query("yolov8n.pt"),
-    framerate: int = Query(30, ge=1, le=45),
+    framerate: int = Query(40, ge=1, le=60),
 ):
     """Transmite vídeo contínuo da câmera com detecções YOLO em todo frame."""
 

@@ -40,7 +40,7 @@ class CameraCapture:
     Mantém sempre o frame mais recente disponível.
     O buffer de tamanho 1 descarta frames antigos automaticamente.
     """
-    def __init__(self, device: int, width: int, height: int, fps: int = 30):
+    def __init__(self, device: int, width: int, height: int, fps: int = 40):
         self._cmd = [
             "rpicam-vid", "-t", "0", "-n", "--codec", "mjpeg",
             "--camera", str(device),

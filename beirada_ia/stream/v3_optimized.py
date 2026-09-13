@@ -41,7 +41,7 @@ class OptimizedCamera:
     O formato MJPEG evita a conversão YUYV→BGR na CPU.
     """
     def __init__(self, device: int, width: int, height: int,
-                 fps: int = 30, use_mjpeg: bool = True):
+                 fps: int = 40, use_mjpeg: bool = True):
         self._cmd = [
             "rpicam-vid", "-t", "0", "-n", "--codec", "mjpeg",
             "--camera", str(device),
@@ -156,8 +156,8 @@ class RealtimeDetector:
         self._last_infer_ms = 0.0
 
 
-        # FPS calculado sobre janela deslizante de 30 frames
-        self._fps_window = deque(maxlen=30)
+        # FPS calculado sobre janela deslizante de 40 frames
+        self._fps_window = deque(maxlen=40)
         self._t_last     = time.perf_counter()
 
 
@@ -242,9 +242,9 @@ def parse_args():
     p.add_argument("--device",      type=int,   default=0)
     p.add_argument("--width",        type=int,   default=640)
     p.add_argument("--height",       type=int,   default=480)
-    p.add_argument("--fps",          type=int,   default=30)
+    p.add_argument("--fps",          type=int,   default=40)
     p.add_argument("--model",        type=str,   default="models/yolov8n.pt")
-    p.add_argument("--conf",         type=float, default=0.4)
+    p.add_argument("--conf",         type=float, default=0.7)
     p.add_argument("--infer-every",  type=int,   default=3,
                    help="Executa YOLO a cada N frames (padrão: 3)")
     p.add_argument("--infer-size",   type=int,   default=320,

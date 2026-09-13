@@ -67,7 +67,7 @@ class RpicamCapture:
     cv2.VideoCapture() não suporta libcamera (câmeras CSI no Raspberry Pi
     OS Bookworm/Trixie) — só funciona com V4L2 nativo (webcams USB).
     """
-    def __init__(self, device: int, width: int, height: int, fps: int = 15):
+    def __init__(self, device: int, width: int, height: int, fps: int = 40):
         cmd = [
             "rpicam-vid", "-t", "0", "-n", "--codec", "mjpeg",
             "--camera", str(device),
