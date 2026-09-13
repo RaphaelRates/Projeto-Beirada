@@ -36,13 +36,13 @@ def wait_for_api(max_retries: int = 10, delay: float = 3.0):
 
 
 
-def run_single_inference(image_path: Path, confidence: float = 0.25):
+def run_single_inference(image_path: Path, confidence: float = 0.80):
     """Envia uma imagem e imprime as detecções recebidas."""
     print(f"\n─── Inferência: {image_path.name} ───")
     payload = {
         "image_base64": encode_image(image_path),
         "confidence": confidence,
-        "model_name": "yolov8n.pt",
+        "model_name": "yolo-epi.pt",
     }
     response = httpx.post(
         f"{API_URL}/predict",
@@ -68,7 +68,7 @@ def run_single_inference(image_path: Path, confidence: float = 0.25):
 
 
 
-def run_batch_inference(image_paths: list, confidence: float = 0.25):
+def run_batch_inference(image_paths: list, confidence: float = 0.80):
     """Envia múltiplas imagens em uma única requisição batch."""
     print(f"\n─── Batch: {len(image_paths)} imagens ───")
     payload = {
