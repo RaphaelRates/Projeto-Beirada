@@ -2,4 +2,4 @@ outs:
 - md5: f8e3ba9815e3ca907475fa93d3588924
   size: 6213674
   hash: md5
-  path: yolov8n_best2.pt
+  path: yolov8n.pt
