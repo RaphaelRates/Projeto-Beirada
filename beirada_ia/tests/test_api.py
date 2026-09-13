@@ -1,7 +1,7 @@
 """
 tests/test_api.py
 Cobertura: smoke test, unit tests e integration test da YOLO Inference API.
-Pré-requisito: models/yolo-epi.pt presente no sistema de arquivos.
+Pré-requisito: models/yolov8n.pt presente no sistema de arquivos.
 """
 import base64
 import inspect
@@ -22,10 +22,10 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 sys.path.insert(0, str(Path(__file__).parent.parent / "app"))
 
 
-os.environ.setdefault("MODEL_NAME", "yolo-epi.pt")
+os.environ.setdefault("MODEL_NAME", "yolov8n.pt")
 
 
-from app import _decode_image, app, stream_camera
+from app import _decode_image, _run_stream_or_camera_only, app, stream_camera
 
 try:
     from app import OptimizedCamera, RealtimeDetector
@@ -129,6 +129,12 @@ class TestDecodeImage:
 # ────────────────────────────────────────────────────────────
 # INTEGRATION TESTS — fluxo completo de inferência
 # ────────────────────────────────────────────────────────────
+
+
+def test_run_stream_or_camera_only_returns_frame_when_model_is_missing():
+    frame = np.zeros((8, 8, 3), dtype=np.uint8)
+    result = _run_stream_or_camera_only(frame, None, 0.60)
+    assert result is frame
 
 
 class TestPredictEndpoint:

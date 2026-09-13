@@ -13,7 +13,7 @@ DEFAULT_THRESHOLD = 0.50
 
 def parse_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--model",     default="models/yolo-epi.pt")
+    parser.add_argument("--model",     default="models/yolov8n.pt")
     parser.add_argument("--threshold", type=float, default=DEFAULT_THRESHOLD)
     parser.add_argument("--dataset",   default=None,
         help="Caminho para o YAML do dataset de validação (opcional)")

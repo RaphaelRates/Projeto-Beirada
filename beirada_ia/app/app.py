@@ -39,6 +39,32 @@ _metrics = {"total": 0, "success": 0, "total_ms": 0.0}
 _streaming_lock = asyncio.Lock()
 
 
+def _run_stream_or_camera_only(frame: np.ndarray, model, confidence: float):
+    """Fallback simples: se o YOLO não puder rodar, devolve o frame bruto da câmera.
+
+    Isso mantém o stream vivo mesmo quando o modelo offline ou indisponível.
+    """
+    if model is None:
+        return frame
+
+    try:
+        results = model.predict(
+            source=frame,
+            conf=confidence,
+            imgsz=320,
+            verbose=False,
+        )
+        return results[0].plot()
+    except Exception as exc:
+        log_event(
+            "stream_yolo_fallback_camera_only",
+            level="WARN",
+            reason=str(exc),
+            confidence=confidence,
+        )
+        return frame
+
+
 def log_event(event: str, level: str = "INFO", **kwargs):
     """Emite um evento estruturado em JSON para stdout."""
     record = {
@@ -342,8 +368,8 @@ def predict_image(request: PredictRequest):
 @app.post("/predict/camera", response_model=PredictResponse)
 def predict_from_camera(
     device_id: int = Query(0, description="Índice do dispositivo (/dev/videoX)"),
-    confidence: float = Query(0.80, ge=0.0, le=1.0, description="Limiar de confiança"),
-    model_name: str = Query("yolo-epi.pt", description="Modelo YOLO a ser utilizado"),
+    confidence: float = Query(0.60, ge=0.0, le=1.0, description="Limiar de confiança"),
+    model_name: str = Query("yolov8n.pt", description="Modelo YOLO a ser utilizado"),
 ):
     """Captura uma foto pela câmera, executa inferência e retorna as detecções."""
     request_id = str(uuid.uuid4())[:8]
@@ -387,8 +413,8 @@ def predict_from_camera(
 @app.get("/predict/camera/image", responses={200: {"content": {"image/jpeg": {}}}})
 def predict_from_camera_image(
     device_id: int = Query(0, description="Índice do dispositivo (/dev/videoX)"),
-    confidence: float = Query(0.80, ge=0.0, le=1.0, description="Limiar de confiança"),
-    model_name: str = Query("yolo-epi.pt", description="Modelo YOLO a ser utilizado"),
+    confidence: float = Query(0.60, ge=0.0, le=1.0, description="Limiar de confiança"),
+    model_name: str = Query("yolov8n.pt", description="Modelo YOLO a ser utilizado"),
 ):
     """Captura imagem da câmera, executa inferência e retorna JPEG anotado."""
     request_id = str(uuid.uuid4())[:8]
@@ -508,9 +534,9 @@ async def get_metrics():
 @app.get("/stream/camera")
 async def stream_camera(
     request: Request,
-    confidence: float = Query(0.80, ge=0.0, le=1.0),
-    model_name: str = Query("yolo-epi.pt"),
-    framerate: int = Query(20, ge=1, le=30),
+    confidence: float = Query(0.60, ge=0.0, le=1.0),
+    model_name: str = Query("yolov8n.pt"),
+    framerate: int = Query(30, ge=1, le=45),
 ):
     """Transmite vídeo contínuo da câmera com detecções YOLO em todo frame."""
 
@@ -520,7 +546,16 @@ async def stream_camera(
             detail="Já existe um stream em andamento.",
         )
 
-    model = load_model(model_name)
+    model = None
+    try:
+        model = load_model(model_name)
+    except Exception as exc:
+        log_event(
+            "stream_yolo_load_failed",
+            level="WARN",
+            model=model_name,
+            reason=str(exc),
+        )
 
     # Tamanho máximo que o buffer pode atingir antes de ser descartado
     # (evita crescimento indefinido caso os marcadores JPEG nunca sejam
@@ -528,14 +563,8 @@ async def stream_camera(
     MAX_BUFFER_SIZE = 5 * 1024 * 1024  # 5 MB
 
     def run_inference(frame):
-        """Executa a inferência YOLO. Roda em thread separada via executor."""
-        results = model.predict(
-            source=frame,
-            conf=confidence,
-            imgsz=320,
-            verbose=False,
-        )
-        return results[0].plot()
+        """Executa a inferência YOLO quando o modelo estiver disponível. Senão devolve o frame bruto."""
+        return _run_stream_or_camera_only(frame, model, confidence)
 
     async def frame_generator():
         async with _streaming_lock:
@@ -545,9 +574,9 @@ async def stream_camera(
                 "-t", "0",
                 "-n",
                 "--codec", "mjpeg",
-                "--quality", "75",
-                "--width", "416",
-                "--height", "416",
+                "--quality", "80",
+                "--width", "640",
+                "--height", "480",
                 "--framerate", str(framerate),
                 "-o", "-"
             ]
