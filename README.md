@@ -1,65 +1,64 @@
-# Projeto V.I.T.A. - Visão Inteligente de Triagem Automática
+# 🛠️ Projeto V.I.T.A. - Visão Inteligente de Triagem Automática
 
-**Equipe:** Computação na Beirada:
-
-- Dorian Dayvid Gomes Feitosa
-- Esdras Rodrigues de Andrade
-- Manuela Menezes Alves
-- Raphael Sousa Rabelo Rates
-
+> **Equipe Computação na Beirada:**
+> - Dorian Dayvid Gomes Feitosa
+> - Esdras Rodrigues de Andrade
+> - Manuela Menezes Alves
+> - Raphael Sousa Rabelo Rates
 
 ---
 
-## Sumário
-
+## 📌 Sumário
 1. [Visão Geral](#visão-geral)
 2. [Diagrama de Arquitetura](#diagrama-de-arquitetura)
 3. [Componentes da Solução](#componentes-da-solução)
-4. [Dependências](#dependências)
-5. [Estrutura das Pastas](#estruturas-de-pastas)
-6. [Pré-requisitos](#pré-requisitos)
-7. [Instruções de Configuração (Setup)](#instruções-de-configuração-setup)
+4. [Dependências e Requisitos](#dependências-e-requisitos)
+5. [Estrutura do Repositório](#estrutura-do-repositório)
+6. [Instruções de Instalação e Execução](#instruções-de-instalação-e-execução)
 
 ---
 
-## Visão Geral
+## 📖 Visão Geral
 
-O Projeto V.I.T.A. é uma solução embarcada para identificação e triagem automática de componentes em uma linha de produção. Uma câmera captura continuamente as peças em movimento, uma API de inferência (yolo-epi) as classifica em tempo real, e o resultado é transmitido a um microcontrolador ESP32-S3, responsável por acionar o servomotor correto no momento exato.
+O **Projeto V.I.T.A.** é uma solução embarcada para identificação, monitoramento e triagem automática de componentes em uma linha de produção.
+
+A arquitetura utiliza uma câmera conectada a uma **Raspberry Pi 5** para captura contínua de imagem. Uma API de inferência em Python (`yolo-api`) baseada em **YOLOv8** processa os frames e classifica as peças em tempo real. Os resultados são transmitidos via porta serial USB para um microcontrolador **ESP32-S3**, que gerencia filas de prioridade e aciona servomotores para o desvio das peças. O sistema também disponibiliza um servidor de streaming MJPEG para visualização web em tempo real.
 
 ---
 
-## Diagrama de Arquitetura
+## 🏗️ Diagrama de Arquitetura
 
-O diagrama representa as duas frentes integradas da solução: **visão computacional** (câmera → pré-processamento → inferência → resultado) e **IoT/embarcado** (comunicação serial → fila → atuação física nos servos).
+O diagrama abaixo apresenta o fluxo integrado entre os componentes de **Visão Computacional (Edge AI)** e **IoT/Embarcados**:
 
 ```mermaid
 flowchart LR
-    subgraph RPI["Raspberry Pi 5"]
-        CAM["Câmera<br>(rpicam-vid / OpenCV)"]
-        PRE["Preprocessor<br>(letterbox, resize, filtros)"]
-        YOLO["Modelo yolo-epi<br>(ultralytics)"]
-        API["API FastAPI<br>(yolo-api)"]
-        STREAM["Servidor MJPEG<br>(Flask - yolo-stream)"]
-        SERIAL["serial_service.py<br>(pyserial)"]
+    subgraph RPI["Raspberry Pi 5 (Borda / Edge AI)"]
+        CAM["Câmera CSI / USB<br>(rpicam-vid / OpenCV)"]
+        PRE["Preprocessor<br>(beirada_ia/app/preprocessing/)"]
+        YOLO["Modelo YOLOv8<br>(beirada_ia/models/yolov8n.pt.dvc)"]
+        API["FastAPI / Uvicorn<br>(beirada_ia/app/app.py)"]
+        STREAM["Servidor MJPEG<br>(beirada_ia/stream/mjpeg_server.py)"]
+        SERIAL["Serviço Serial<br>(beirada_ia/app/services/serial_service.py)"]
     end
 
-    subgraph CONECT["Conectividade"]
-        USB["Porta Serial USB<br>/dev/ttyACM0 - 115200 baud<br>protocolo ASCII 'N\\n'"]
+    subgraph CONECT["Conectividade & Docker"]
+        USB["Porta Serial USB<br>/dev/ttyACM0 - 115200 baud"]
+        DOCKER["Docker Compose<br>(docker-compose.yml)"]
     end
 
-    subgraph ESP["ESP32-S3 (ESP-IDF / FreeRTOS)"]
-        FILAS["Filas por Servo<br>(cálculo do tempo de percurso)"]
-        SERVOS["Servomotores 1, 2 e 3<br>(LEDC / GPIO)"]
+    subgraph ESP["ESP32-S3 (Firmware C / ESP-IDF)"]
+        FILAS["Gerenciador de Filas<br>(beirada_esp/ledc_basic/main/filas.c)"]
+        SERVOS["Controle PWM LEDC Servos<br>(beirada_esp/ledc_basic/main/servo.c)"]
     end
 
-    CAM -->|Frame capturado| PRE
-    PRE -->|Frame normalizado| YOLO
-    YOLO -->|Detecções: classe, bbox, confiança| API
-    API -->|Frame anotado| STREAM
-    API -->|Classe detectada| SERIAL
-    SERIAL -->|Envia classe| USB
-    USB -->|Recebe classe| FILAS
-    FILAS -->|Aciona no tempo calculado| SERVOS
+    CAM -->|Frame Bruto| PRE
+    PRE -->|Frame Normalizado| YOLO
+    YOLO -->|Detecções / Bounding Boxes| API
+    API -->|Superposição de Labels| STREAM
+    API -->|Classe Detectada| SERIAL
+    SERIAL -->|String Protocolo ASCII| USB
+    USB -->|Recebe Classe| FILAS
+    FILAS -->|Sinal PWM / GPIO| SERVOS
 ```
 
 ---
