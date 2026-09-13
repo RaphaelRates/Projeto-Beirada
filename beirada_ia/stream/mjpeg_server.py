@@ -61,7 +61,7 @@ def _generate_mjpeg():
 
 
         if not jpg:
-            time.sleep(0.01)
+            time.sleep(0.005)
             continue
 
 
@@ -99,7 +99,7 @@ def index():
     </head>
     <body>
         <h1>YOLOv8 — Raspberry Pi 5 — Tempo Real</h1>
-        <img src='/stream' />
+        <img src='/stream' width='640' height='480'/>
         <p>Stream MJPEG com inferência YOLO e anotações em tempo real.</p>
     </body>
     </html>

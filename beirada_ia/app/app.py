@@ -53,6 +53,9 @@ def _run_stream_or_camera_only(frame: np.ndarray, model, confidence: float):
             conf=confidence,
             imgsz=320,
             verbose=False,
+            half=True,
+            iou=0.6, 
+            
         )
         return results[0].plot()
     except Exception as exc:
