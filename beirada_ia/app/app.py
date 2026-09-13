@@ -7,6 +7,8 @@ import time
 import uuid
 
 import cv2
+from fastapi.staticfiles import StaticFiles
+from fastapi.templating import Jinja2Templates
 import httpx
 import numpy as np
 from fastapi import FastAPI, HTTPException, Query, Request, Response
@@ -24,6 +26,8 @@ from schemas import (
 )
 
 from preprocessing.preprocessor import CONFIG_DEFAULT, Preprocessor
+
+templates = Jinja2Templates(directory="templates")
 
 app = FastAPI(
     title="YOLO Inference API",
@@ -754,199 +758,17 @@ async def stream_camera(
         media_type="multipart/x-mixed-replace; boundary=frame",
     )
 
-# @app.get("/stream/camera")
-# async def stream_camera(
-#     request: Request,
-#     confidence: float = Query(0.25, ge=0.0, le=1.0),
-#     model_name: str = Query("yolov8n.pt"),
-#     framerate: int = Query(20, ge=1, le=30),
-# ):
-#     """Transmite vídeo contínuo da câmera com detecções YOLO."""
 
-#     if _streaming_lock.locked():
-#         raise HTTPException(
-#             status_code=409,
-#             detail="Já existe um stream em andamento.",
-#         )
+from fastapi import Request
+from fastapi.responses import HTMLResponse
 
-#     model = load_model(model_name)
+app.mount("/static", StaticFiles(directory="static"), name="static")
 
-#     async def frame_generator():
-#         async with _streaming_lock:
-
-#             cmd = [
-#                 "rpicam-vid",
-#                 "-t", "0",
-#                 "-n",
-#                 "--codec", "mjpeg",
-#                 "--quality", "75",
-#                 "--width", "416",
-#                 "--height", "416",
-#                 "--framerate", str(framerate),
-#                 "-o", "-"
-#             ]
-
-#             proc = None
-
-#             try:
-#                 proc = subprocess.Popen(
-#                     cmd,
-#                     stdout=subprocess.PIPE,
-#                     stderr=subprocess.PIPE,
-#                     bufsize=0,
-#                 )
-
-#                 log_event(
-#                     "stream_started",
-#                     pid=proc.pid,
-#                     model=model_name,
-#                     confidence=confidence,
-#                 )
-
-#                 loop = asyncio.get_running_loop()
-
-#                 buffer = b""
-#                 frame_count = 0
-#                 infer_every = 3
-
-#                 while True:
-
-#                     if await request.is_disconnected():
-#                         break
-
-#                     chunk = await loop.run_in_executor(
-#                         None,
-#                         proc.stdout.read,
-#                         65536,
-#                     )
-
-#                     if not chunk:
-#                         break
-
-#                     buffer += chunk
-
-#                     while True:
-
-#                         start = buffer.find(b"\xff\xd8")
-
-#                         if start == -1:
-#                             break
-
-#                         end = buffer.find(
-#                             b"\xff\xd9",
-#                             start + 2,
-#                         )
-
-#                         if end == -1:
-#                             break
-
-#                         raw_frame = buffer[start:end + 2]
-#                         buffer = buffer[end + 2:]
-
-#                         try:
-
-#                             frame_count += 1
-
-#                             jpg = np.frombuffer(
-#                                 raw_frame,
-#                                 dtype=np.uint8,
-#                             )
-
-#                             frame = cv2.imdecode(
-#                                 jpg,
-#                                 cv2.IMREAD_COLOR,
-#                             )
-
-#                             if frame is None:
-#                                 continue
-
-#                             if frame_count % infer_every == 0:
-
-#                                 results = model.predict(
-#                                     source=frame,
-#                                     conf=confidence,
-#                                     imgsz=320,
-#                                     verbose=False,
-#                                 )
-
-#                                 frame = results[0].plot()
-
-#                             success, encoded = cv2.imencode(
-#                                 ".jpg",
-#                                 frame,
-#                                 [
-#                                     cv2.IMWRITE_JPEG_QUALITY,
-#                                     75,
-#                                 ],
-#                             )
-
-#                             if not success:
-#                                 continue
-
-#                             yield (
-#                                 b"--frame\r\n"
-#                                 b"Content-Type: image/jpeg\r\n\r\n"
-#                                 + encoded.tobytes()
-#                                 + b"\r\n"
-#                             )
-
-#                         except Exception as e:
-#                             log_event(
-#                                 "stream_frame_error",
-#                                 level="ERROR",
-#                                 reason=str(e),
-#                             )
-
-#             finally:
-
-#                 if proc is not None:
-
-#                     proc.terminate()
-
-#                     try:
-#                         proc.wait(timeout=2)
-#                     except subprocess.TimeoutExpired:
-#                         proc.kill()
-#                         proc.wait(timeout=2)
-
-#                     if proc.stderr:
-
-#                         stderr_output = (
-#                             proc.stderr.read()
-#                             .decode(errors="ignore")
-#                             .strip()
-#                         )
-
-#                         if stderr_output:
-#                             log_event(
-#                                 "stream_camera_stderr",
-#                                 level="WARN",
-#                                 output=stderr_output,
-#                             )
-
-#                     log_event(
-#                         "stream_stopped",
-#                         pid=proc.pid,
-#                     )
-
-#     return StreamingResponse(
-#         frame_generator(),
-#         media_type="multipart/x-mixed-replace; boundary=frame",
-#     )
-    
-    
 @app.get("/stream/view", response_class=HTMLResponse)
-async def stream_view():
-    """Página simples para visualizar o stream anotado no navegador."""
-    return """
-    <!DOCTYPE html>
-    <html lang="pt-BR">
-    <head>
-        <meta charset="UTF-8">
-        <title>YOLO Live Stream — Raspberry Pi 5</title>
-    </head>
-    <body style="margin:0; background:#111; display:flex; justify-content:center; align-items:center; height:100vh;">
-        <img src="/stream/camera" style="max-width:100%; height:auto;" alt="YOLO Live Stream">
-    </body>
-    </html>
-    """
+async def stream_view(request: Request):
+    """Página para visualizar o stream anotado."""
+    return templates.TemplateResponse(
+        request=request,
+        name="index.html",
+        context={}
+    )
