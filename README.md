@@ -68,10 +68,10 @@ flowchart LR
 ### Hardware
 | Componente | Função na arquitetura |
 |---|---|
-| Câmera | Captura das imagens das peças na esteira (entrada do pipeline de visão) |
-| Raspberry Pi 5 | Executa a API de inferência (yolo-epi) e o servidor de streaming |
-| ESP32-S3 | Recebe a classe detectada via serial e controla os servomotores |
-| Servomotores | Atuação física, desviando cada peça para o caminho correspondente |
+| Câmera | Sensor óptico de entrada para captura de quadros da esteira. |
+| Raspberry Pi 5 | Unidade central de processamento em borda (Edge AI), hospedagem da API e servidor de streaming.|
+| ESP32-S3 | Microcontrolador de tempo real executando firmware determinístico em C (ESP-IDF/FreeRTOS). |
+| Servomotores | Atuadores mecânicos responsáveis pelo desvio físico dos componentes. |
 
 ### Software
 | Camada | Tecnologia | Versão | Função |
