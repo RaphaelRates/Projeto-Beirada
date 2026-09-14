@@ -18,10 +18,7 @@ void app_main(void)
         return;
     }
 
-    // Coloca todos os servos em repouso
-    for (int i = 0; i < SERVO_MAX_COUNT; i++) {
-        servo_desativar((servo_id_t)i);
-    }
+
 
     // 2. Inicializa Filas e Tasks
     if (logica_filas_init() != ESP_OK) {
