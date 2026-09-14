@@ -167,7 +167,7 @@ CONFIG_LOW_LIGHT = PreprocessConfig(
 
 
 CONFIG_HIGH_QUALITY = PreprocessConfig(
-    infer_size=640,
+    infer_size=1300,
     convert_rgb=True,
     use_letterbox=True,
     gaussian_blur=False,

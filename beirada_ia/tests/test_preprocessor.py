@@ -10,7 +10,7 @@ from beirada_ia.app.preprocessing.preprocessor import Preprocessor, PreprocessCo
 
 
 
-def make_frame(h=480, w=640, dtype=np.uint8):
+def make_frame(h=720, w=1300, dtype=np.uint8):
     return np.random.randint(0, 255, (h, w, 3), dtype=dtype)
 
 
@@ -41,9 +41,9 @@ class TestPreprocessorOutput:
     def test_scale_and_padding_set(self):
         """Letterbox deve preencher scale e pad_w/h no resultado."""
         pp  = Preprocessor(PreprocessConfig(infer_size=416, use_letterbox=True))
-        res = pp.process(make_frame(h=480, w=640))
+        res = pp.process(make_frame(h=720, w=1300))
         assert res.scale > 0
-        assert res.orig_size == (480, 640)
+        assert res.orig_size == (720, 1300)
 
 
     def test_letterbox_padding_symmetric(self):
@@ -60,7 +60,7 @@ class TestBboxAdjustment:
     def test_adjust_removes_letterbox_offset(self):
         """Bboxes ajustadas devem ter y1 menor que as originais (padding removido)."""
         pp  = Preprocessor(PreprocessConfig(infer_size=416))
-        res = pp.process(make_frame(h=480, w=640))  # gera pad_h > 0
+        res = pp.process(make_frame(h=720, w=1300))  # gera pad_h > 0
         boxes_lb = np.array([[10, 50, 100, 200]], dtype=float)  # coords letterboxed
         boxes_orig = pp.adjust_boxes(boxes_lb, res)
         # y deve ser menor após remover o padding do topo
@@ -93,12 +93,12 @@ class TestNonUniformScale:
         """Sem letterbox, x e y devem ser corrigidos com escalas diferentes
         quando a imagem de entrada não é quadrada."""
         pp  = Preprocessor(PreprocessConfig(infer_size=416, use_letterbox=False))
-        res = pp.process(make_frame(h=480, w=640))
+        res = pp.process(make_frame(h=720, w=1300))
         assert res.scale_x != res.scale_y  # confirma que há distorção real aqui
 
 
         boxes_resized = np.array([[0, 0, 416, 416]], dtype=float)
         boxes_orig = pp.adjust_boxes(boxes_resized, res)
-        # x deve voltar pra largura original (640), y pra altura original (480)
-        assert abs(boxes_orig[0, 2] - 640) < 1e-6
-        assert abs(boxes_orig[0, 3] - 480) < 1e-6
+        # x deve voltar pra largura original (1300), y pra altura original (720)
+        assert abs(boxes_orig[0, 2] - 1300) < 1e-6
+        assert abs(boxes_orig[0, 3] - 720) < 1e-6

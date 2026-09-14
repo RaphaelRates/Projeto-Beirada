@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 stream/v1_naive.py — Implementação ingênua: diagnóstico de FPS e latência.
-Execução: python3 stream/v1_naive.py --device 0 --width 640 --height 480
+Execução: python3 stream/v1_naive.py --device 0 --width 1300 --height 720
 """
 import argparse
 import time
@@ -53,9 +53,9 @@ def _read_next_frame(proc, leftover: bytes):
 def parse_args():
     p = argparse.ArgumentParser()
     p.add_argument("--device",  type=int,   default=0,         help="Índice do dispositivo de câmera")
-    p.add_argument("--width",   type=int,   default=640,       help="Largura de captura")
-    p.add_argument("--height",  type=int,   default=480,       help="Altura de captura")
-    p.add_argument("--model",   type=str,   default="models/yolov8n.pt")
+    p.add_argument("--width",   type=int,   default=1300,       help="Largura de captura")
+    p.add_argument("--height",  type=int,   default=720,       help="Altura de captura")
+    p.add_argument("--model",   type=str,   default="models/yolov8n_v3_v3_v3_v3_v3.pt")
     p.add_argument("--conf",    type=float, default=0.4)
     p.add_argument("--frames",  type=int,   default=100,       help="Frames para medir antes de encerrar")
     return p.parse_args()

@@ -18,8 +18,8 @@ services:
       - /dev:/dev
       - /run/udev:/run/udev:ro
     environment:
-      - MODEL_NAME=yolov8n.pt
-      - MODEL_PATH=/app/models/yolov8n.pt
+      - MODEL_NAME=yolov8n_v3.pt
+      - MODEL_PATH=/app/models/yolov8n_v3.pt
       - CONFIDENCE=0.70
       - ESP32_SERIAL_PORT=/dev/ttyACM0
       - ESP32_SERIAL_BAUD=115200
@@ -51,14 +51,14 @@ services:
       - /dev:/dev
       - /run/udev:/run/udev:ro
     environment:
-      - MODEL_NAME=yolov8n.pt
-      - MODEL_PATH=/app/models/yolov8n.pt
+      - MODEL_NAME=yolov8n_v3.pt
+      - MODEL_PATH=/app/models/yolov8n_v3.pt
       - CONFIDENCE=0.70
     command: >
       python3 stream/mjpeg_server.py
       --device 0
-      --infer-every 2
-      --infer-size 320
+      --infer-every 3
+      --infer-size 300
       --port 5000
     networks:
       - yolo-net
