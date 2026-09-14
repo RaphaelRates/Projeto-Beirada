@@ -53,8 +53,8 @@ def _run_stream_or_camera_only(frame: np.ndarray, model, confidence: float):
             conf=confidence,
             imgsz=300,
             verbose=False,
-            # half=True,
-            iou=0.30, 
+            half=True,
+            iou=0.15, 
             
         )
         return results[0].plot()
