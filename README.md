@@ -1,4 +1,4 @@
-# 🛠️ Projeto V.I.T.A. - Visão Inteligente de Triagem Automática
+# Projeto V.I.T.A. - Visão Inteligente de Triagem Automática
 
 > **Equipe Computação na Beirada:**
 > - Dorian Dayvid Gomes Feitosa
@@ -8,7 +8,7 @@
 
 ---
 
-## 📌 Sumário
+## Sumário
 1. [Visão Geral](#visão-geral)
 2. [Diagrama de Arquitetura](#diagrama-de-arquitetura)
 3. [Componentes da Solução](#componentes-da-solução)
@@ -18,7 +18,7 @@
 
 ---
 
-## 📖 Visão Geral
+## Visão Geral
 
 O **Projeto V.I.T.A.** é uma solução embarcada para identificação, monitoramento e triagem automática de componentes em uma linha de produção.
 
@@ -26,7 +26,7 @@ A arquitetura utiliza uma câmera conectada a uma **Raspberry Pi 5** para captur
 
 ---
 
-## 🏗️ Diagrama de Arquitetura
+## Diagrama de Arquitetura
 
 O diagrama abaixo apresenta o fluxo integrado entre os componentes de **Visão Computacional (Edge AI)** e **IoT/Embarcados**:
 
