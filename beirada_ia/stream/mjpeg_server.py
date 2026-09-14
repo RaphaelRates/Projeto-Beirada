@@ -139,7 +139,7 @@ def parse_args():
     p.add_argument("--width",       type=int,   default=1300)
     p.add_argument("--height",      type=int,   default=720)
     p.add_argument("--fps",         type=int,   default=40)
-    p.add_argument("--model",       type=str,   default="models/yolov8n.pt")
+    p.add_argument("--model",       type=str,   default="models/yolov8n_v3.pt")
     p.add_argument("--conf",        type=float, default=0.65)
     p.add_argument("--infer-every", type=int,   default=2)
     p.add_argument("--infer-size",  type=int,   default=320)

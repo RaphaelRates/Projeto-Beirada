@@ -55,7 +55,7 @@ def parse_args():
     p.add_argument("--device",  type=int,   default=0,         help="Índice do dispositivo de câmera")
     p.add_argument("--width",   type=int,   default=1300,       help="Largura de captura")
     p.add_argument("--height",  type=int,   default=720,       help="Altura de captura")
-    p.add_argument("--model",   type=str,   default="models/yolov8n.pt")
+    p.add_argument("--model",   type=str,   default="models/yolov8n_v3_v3_v3_v3_v3.pt")
     p.add_argument("--conf",    type=float, default=0.4)
     p.add_argument("--frames",  type=int,   default=100,       help="Frames para medir antes de encerrar")
     return p.parse_args()

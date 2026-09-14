@@ -243,7 +243,7 @@ def parse_args():
     p.add_argument("--width",        type=int,   default=1300)
     p.add_argument("--height",       type=int,   default=720)
     p.add_argument("--fps",          type=int,   default=40)
-    p.add_argument("--model",        type=str,   default="models/yolov8n.pt")
+    p.add_argument("--model",        type=str,   default="models/yolov8n_v3_v3.pt")
     p.add_argument("--conf",         type=float, default=0.70)
     p.add_argument("--infer-every",  type=int,   default=3,
                    help="Executa YOLO a cada N frames (padrão: 3)")
