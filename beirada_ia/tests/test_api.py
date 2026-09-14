@@ -26,6 +26,7 @@ os.environ.setdefault("MODEL_NAME", "yolov8n_v4.pt")
 
 
 from app import _decode_image, _run_stream_or_camera_only, app, stream_camera
+from model import get_default_model_name
 from preprocessing.preprocessor import CONFIG_DEFAULT
 from schemas import PredictRequest
 
@@ -94,6 +95,15 @@ class TestSmoke:
         """Endpoint /metrics deve estar acessível."""
         resp = client.get("/metrics")
         assert resp.status_code == 200
+
+
+    def test_metrics_endpoint_returns_active_model_name(self):
+        """Endpoint /metrics deve refletir o modelo ativo em tempo real."""
+        resp = client.get("/metrics")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert "model_name" in data
+        assert data["model_name"] == get_default_model_name()
 
 
 
