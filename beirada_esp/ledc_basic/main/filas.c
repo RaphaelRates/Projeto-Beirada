@@ -16,31 +16,34 @@ static void servo_task(void *pvParameters)
     servo_id_t servo_id = (servo_id_t)(uintptr_t)pvParameters;
     uint8_t piece_class;
 
+    ESP_LOGI(TAG, "Task do Servo %d rodando (Modo Duplo Sensor).", servo_id + 1);
+
     while (1) {
-        // 1. Aguarda a visão computacional informar que há uma peça encaminhada para este servo
+        // 1. Aguarda a visão informar que há uma peça para este servo
         if (xQueueReceive(xServoQueues[servo_id], &piece_class, portMAX_DELAY) == pdTRUE) {
             
-            ESP_LOGI(TAG, "Servo %d aguardando a chegada da peça no sensor...", servo_id + 1);
+            ESP_LOGI(TAG, "Servo %d aguardando peça no Sensor de ENTRADA...", servo_id + 1);
 
-            // 2. Aguarda a peça FISICAMENTE CHEGAR ao sensor (Borda de Descida)
-            while (!sensor_objeto_presente(servo_id)) {
+            // 2. Aguarda o SENSOR DE ENTRADA (esteira principal) detectar a peça
+            while (!sensor_objeto_presente(servo_id, SENSOR_ENTRADA)) {
                 vTaskDelay(pdMS_TO_TICKS(10));
             }
 
-            // 3. Peça chegou! Ativa o servo para desviar
-            ESP_LOGI(TAG, "Peça detectada pelo Sensor %d! Acionando servo...", servo_id + 1);
+            // 3. Peça chegou! Ativa o servo para empurrar/desviar
+            ESP_LOGI(TAG, "Peça na entrada do Servo %d! Acionando braço...", servo_id + 1);
             servo_abrir(servo_id);
 
-            // 4. Aguarda a peça SAIR COMPLETAMENTE do sensor (Borda de Subida)
-            // O servo continua aberto enquanto a peça bloquear o feixe
-            while (sensor_objeto_presente(servo_id)) {
+            // 4. Aguarda o SENSOR DE SAÍDA (esteira perpendicular) confirmar a recepção
+            ESP_LOGI(TAG, "Aguardando confirmação no Sensor de SAÍDA %d...", servo_id + 1);
+            while (!sensor_objeto_presente(servo_id, SENSOR_SAIDA)) {
                 vTaskDelay(pdMS_TO_TICKS(10));
             }
 
-            // Opcional: Pequeno atraso extra (ex: 100ms) só para garantir o término da física do desvio
-            vTaskDelay(pdMS_TO_TICKS(100));
+            // Pequeno delay opcional para a peça estabilizar na nova esteira
+            vTaskDelay(pdMS_TO_TICKS(150));
 
-            // 5. Desativa o servo, retornando à posição de repouso
+            // 5. Peça transferida com sucesso! Recolhe o servo
+            ESP_LOGI(TAG, "Peça recebida na esteira perpendicular %d! Recolhendo servo.", servo_id + 1);
             servo_desativar(servo_id);
         }
     }

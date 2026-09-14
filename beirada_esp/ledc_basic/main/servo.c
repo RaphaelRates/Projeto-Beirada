@@ -1,5 +1,6 @@
 #include "servo.h"
 #include "esp_log.h"
+#include "driver/gpio.h"
 
 static const char *TAG = "SERVO_CONTROL";
 
@@ -9,21 +10,28 @@ typedef struct {
     ledc_channel_t channel;
 } servo_config_t;
 
+// Instanciação do array servos (Mapeia ID -> Pino GPIO e Canal LEDC)
 static const servo_config_t servos[SERVO_MAX_COUNT] = {
     [servo1] = { .gpio = SERVO1_GPIO, .channel = LEDC_CHANNEL_0 },
     [servo2] = { .gpio = SERVO2_GPIO, .channel = LEDC_CHANNEL_1 },
     [servo3] = { .gpio = SERVO3_GPIO, .channel = LEDC_CHANNEL_2 },
 };
 
-static const gpio_num_t sensor_gpios[SERVO_MAX_COUNT] = {
-    [servo1] = SENSOR1_GPIO,
-    [servo2] = SENSOR2_GPIO,
-    [servo3] = SENSOR3_GPIO,
+static const gpio_num_t sensores_entrada[SERVO_MAX_COUNT] = {
+    [servo1] = SENSOR1_ENTRADA_GPIO,
+    [servo2] = SENSOR2_ENTRADA_GPIO,
+    [servo3] = SENSOR3_ENTRADA_GPIO,
+};
+
+static const gpio_num_t sensores_saida[SERVO_MAX_COUNT] = {
+    [servo1] = SENSOR1_SAIDA_GPIO,
+    [servo2] = SENSOR2_SAIDA_GPIO,
+    [servo3] = SENSOR3_SAIDA_GPIO,
 };
 
 esp_err_t servo_init(void)
 {
-    // 1. Configuração do Timer do LEDC (PWM para os Servos)
+    // 1. Configuração do Timer do LEDC
     ledc_timer_config_t timer_config = {
         .speed_mode       = LEDC_LOW_SPEED_MODE,
         .timer_num        = LEDC_TIMER_0,
@@ -31,14 +39,9 @@ esp_err_t servo_init(void)
         .freq_hz          = SERVO_FREQ,
         .clk_cfg          = LEDC_AUTO_CLK
     };
+    ledc_timer_config(&timer_config);
 
-    esp_err_t err = ledc_timer_config(&timer_config);
-    if (err != ESP_OK) {
-        ESP_LOGE(TAG, "Falha ao configurar timer LEDC: %s", esp_err_to_name(err));
-        return err;
-    }
-
-    // 2. Configuração dos Canais LEDC individuais
+    // Configuração dos Canais LEDC usando o array servos
     for (int i = 0; i < SERVO_MAX_COUNT; i++) {
         ledc_channel_config_t channel_config = {
             .gpio_num   = servos[i].gpio,
@@ -48,44 +51,36 @@ esp_err_t servo_init(void)
             .duty       = 0,
             .hpoint     = 0
         };
-
-        err = ledc_channel_config(&channel_config);
-        if (err != ESP_OK) {
-            ESP_LOGE(TAG, "Falha ao configurar canal %d no pino %d: %s", 
-                     servos[i].channel, servos[i].gpio, esp_err_to_name(err));
-            return err;
-        }
+        ledc_channel_config(&channel_config);
     }
 
-    // 3. Configuração dos GPIOs para os Sensores E18-D80NK (Entradas)
+    // 2. Configuração dos 6 Sensores (3 Entradas + 3 Saídas)
+    uint64_t sensor_mask = (1ULL << SENSOR1_ENTRADA_GPIO) | (1ULL << SENSOR2_ENTRADA_GPIO) | (1ULL << SENSOR3_ENTRADA_GPIO) |
+                           (1ULL << SENSOR1_SAIDA_GPIO)   | (1ULL << SENSOR2_SAIDA_GPIO)   | (1ULL << SENSOR3_SAIDA_GPIO);
+
     gpio_config_t io_conf_in = {
-        .pin_bit_mask = (1ULL << SENSOR1_GPIO) | (1ULL << SENSOR2_GPIO) | (1ULL << SENSOR3_GPIO),
+        .pin_bit_mask = sensor_mask,
         .mode = GPIO_MODE_INPUT,
-        .pull_up_en = GPIO_PULLUP_ENABLE, // Resistor de Pull-up interno ativado
+        .pull_up_en = GPIO_PULLUP_ENABLE,
         .pull_down_en = GPIO_PULLDOWN_DISABLE,
         .intr_type = GPIO_INTR_DISABLE
     };
-    
-    err = gpio_config(&io_conf_in);
-    if (err != ESP_OK) {
-        ESP_LOGE(TAG, "Falha ao configurar GPIOs dos Sensores: %s", esp_err_to_name(err));
-        return err;
-    }
+    gpio_config(&io_conf_in);
 
-    // 4. Coloca todos os servos na posição inicial neutra (90 graus)
     for (int i = 0; i < SERVO_MAX_COUNT; i++) {
         servo_desativar((servo_id_t)i);
     }
 
-    ESP_LOGI(TAG, "Servomotores PWM e Sensores E18 inicializados com sucesso!");
+    ESP_LOGI(TAG, "Servos e 6 Sensores E18 inicializados!");
     return ESP_OK;
 }
 
-bool sensor_objeto_presente(servo_id_t id)
+bool sensor_objeto_presente(servo_id_t id, sensor_tipo_t tipo)
 {
     if (id >= SERVO_MAX_COUNT) return false;
-    // O sensor E18-D80NK envia NÍVEL BAIXO (0) quando um objeto é detectado
-    return (gpio_get_level(sensor_gpios[id]) == 0);
+
+    gpio_num_t pino = (tipo == SENSOR_ENTRADA) ? sensores_entrada[id] : sensores_saida[id];
+    return (gpio_get_level(pino) == 0); // 0 (LOW) = Objeto detectado
 }
 
 esp_err_t servo_angulo(servo_id_t id, uint8_t angle_deg)
@@ -129,7 +124,7 @@ void servo_desativar(servo_id_t id)
 void servo_abrir(servo_id_t id)
 {
     if (id == servo2) {
-        servo_angulo(id, 155);
+        servo_angulo(id, 50);
     } else {
         servo_angulo(id, 150);
     }
