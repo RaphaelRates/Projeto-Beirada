@@ -25,7 +25,7 @@ torch.load = _patched_torch_load
 
 
 DATASET_YAML = "dataset/exports/epi-v1/data.yaml"
-MODEL_PATH   = "models/yolov8n_v3_v3.pt"
+MODEL_PATH   = "models/yolov8n_v4_v3_v3.pt"
 
 def evaluate_pipeline(
     preprocess_fn: Optional[Callable] = None,
