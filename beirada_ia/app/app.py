@@ -51,10 +51,11 @@ def _run_stream_or_camera_only(frame: np.ndarray, model, confidence: float):
         results = model.predict(
             source=frame,
             conf=confidence,
-            imgsz=240,
+            imgsz=280,
             verbose=False,
             half=True,
-            iou=0.6, 
+            rect=True,
+            iou=0.8, 
             
         )
         return results[0].plot()

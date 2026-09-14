@@ -247,8 +247,8 @@ def parse_args():
     p.add_argument("--conf",         type=float, default=0.70)
     p.add_argument("--infer-every",  type=int,   default=2,
                    help="Executa YOLO a cada N frames (padrão: 2)")
-    p.add_argument("--infer-size",   type=int,   default=320,
-                   help="Resolução de inferência em px (padrão: 320)")
+    p.add_argument("--infer-size",   type=int,   default=280,
+                   help="Resolução de inferência em px (padrão: 280)")
     p.add_argument("--output",       type=str,   default=None,
                    help="Salva o stream anotado em arquivo .avi (opcional)")
     p.add_argument("--no-display",   action="store_true",
