@@ -61,7 +61,7 @@ def _generate_mjpeg():
 
 
         if not jpg:
-            time.sleep(0.005)
+            time.sleep(0.008)
             continue
 
 
@@ -140,8 +140,8 @@ def parse_args():
     p.add_argument("--height",      type=int,   default=480)
     p.add_argument("--fps",         type=int,   default=40)
     p.add_argument("--model",       type=str,   default="models/yolov8n.pt")
-    p.add_argument("--conf",        type=float, default=0.7)
-    p.add_argument("--infer-every", type=int,   default=3)
+    p.add_argument("--conf",        type=float, default=0.65)
+    p.add_argument("--infer-every", type=int,   default=2)
     p.add_argument("--infer-size",  type=int,   default=320)
     p.add_argument("--port",        type=int,   default=5000)
     p.add_argument("--host",        type=str,   default="0.0.0.0")

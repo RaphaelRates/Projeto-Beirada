@@ -36,7 +36,7 @@ def wait_for_api(max_retries: int = 10, delay: float = 3.0):
 
 
 
-def run_single_inference(image_path: Path, confidence: float = 0.60):
+def run_single_inference(image_path: Path, confidence: float = 0.65):
     """Envia uma imagem e imprime as detecções recebidas."""
     print(f"\n─── Inferência: {image_path.name} ───")
     payload = {
@@ -68,7 +68,7 @@ def run_single_inference(image_path: Path, confidence: float = 0.60):
 
 
 
-def run_batch_inference(image_paths: list, confidence: float = 0.60):
+def run_batch_inference(image_paths: list, confidence: float = 0.65):
     """Envia múltiplas imagens em uma única requisição batch."""
     print(f"\n─── Batch: {len(image_paths)} imagens ───")
     payload = {

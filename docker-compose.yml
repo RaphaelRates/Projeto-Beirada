@@ -20,7 +20,7 @@ services:
     environment:
       - MODEL_NAME=yolov8n.pt
       - MODEL_PATH=/app/models/yolov8n.pt
-      - CONFIDENCE=0.65
+      - CONFIDENCE=0.70
       - ESP32_SERIAL_PORT=/dev/ttyACM0
       - ESP32_SERIAL_BAUD=115200
       - ESP32_MIN_INTERVAL_S=0.1
@@ -53,12 +53,12 @@ services:
     environment:
       - MODEL_NAME=yolov8n.pt
       - MODEL_PATH=/app/models/yolov8n.pt
-      - CONFIDENCE=0.65
+      - CONFIDENCE=0.70
     command: >
       python3 stream/mjpeg_server.py
       --device 0
       --infer-every 2
-      --infer-size 224
+      --infer-size 320
       --port 5000
     networks:
       - yolo-net

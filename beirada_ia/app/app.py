@@ -51,7 +51,7 @@ def _run_stream_or_camera_only(frame: np.ndarray, model, confidence: float):
         results = model.predict(
             source=frame,
             conf=confidence,
-            imgsz=320,
+            imgsz=240,
             verbose=False,
             half=True,
             iou=0.6, 
@@ -371,7 +371,7 @@ def predict_image(request: PredictRequest):
 @app.post("/predict/camera", response_model=PredictResponse)
 def predict_from_camera(
     device_id: int = Query(0, description="Índice do dispositivo (/dev/videoX)"),
-    confidence: float = Query(0.60, ge=0.0, le=1.0, description="Limiar de confiança"),
+    confidence: float = Query(0.65, ge=0.0, le=1.0, description="Limiar de confiança"),
     model_name: str = Query("yolov8n.pt", description="Modelo YOLO a ser utilizado"),
 ):
     """Captura uma foto pela câmera, executa inferência e retorna as detecções."""
@@ -416,7 +416,7 @@ def predict_from_camera(
 @app.get("/predict/camera/image", responses={200: {"content": {"image/jpeg": {}}}})
 def predict_from_camera_image(
     device_id: int = Query(0, description="Índice do dispositivo (/dev/videoX)"),
-    confidence: float = Query(0.60, ge=0.0, le=1.0, description="Limiar de confiança"),
+    confidence: float = Query(0.65, ge=0.0, le=1.0, description="Limiar de confiança"),
     model_name: str = Query("yolov8n.pt", description="Modelo YOLO a ser utilizado"),
 ):
     """Captura imagem da câmera, executa inferência e retorna JPEG anotado."""
@@ -537,7 +537,7 @@ async def get_metrics():
 @app.get("/stream/camera")
 async def stream_camera(
     request: Request,
-    confidence: float = Query(0.60, ge=0.0, le=1.0),
+    confidence: float = Query(0.65, ge=0.0, le=1.0),
     model_name: str = Query("yolov8n.pt"),
     framerate: int = Query(40, ge=1, le=60),
 ):
@@ -725,7 +725,7 @@ async def stream_camera(
                             frame,
                             [
                                 cv2.IMWRITE_JPEG_QUALITY,
-                                75,
+                                70,
                             ],
                         )
 

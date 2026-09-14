@@ -26,6 +26,8 @@ os.environ.setdefault("MODEL_NAME", "yolov8n.pt")
 
 
 from app import _decode_image, _run_stream_or_camera_only, app, stream_camera
+from preprocessing.preprocessor import CONFIG_DEFAULT
+from schemas import PredictRequest
 
 try:
     from app import OptimizedCamera, RealtimeDetector
@@ -34,6 +36,11 @@ except Exception:
     RealtimeDetector = None
 
 client = TestClient(app)
+
+
+def test_default_api_confidence_and_preprocess_infer_size():
+    assert PredictRequest().confidence == 0.65
+    assert CONFIG_DEFAULT.infer_size == 240
 
 
 def test_stream_camera_route_supports_stream_optimization_params():
