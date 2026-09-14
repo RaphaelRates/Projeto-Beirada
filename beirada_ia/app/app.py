@@ -51,11 +51,10 @@ def _run_stream_or_camera_only(frame: np.ndarray, model, confidence: float):
         results = model.predict(
             source=frame,
             conf=confidence,
-            imgsz=280,
+            imgsz=300,
             verbose=False,
-            half=True,
-            rect=True,
-            iou=0.8, 
+            # half=True,
+            iou=0.30, 
             
         )
         return results[0].plot()
@@ -162,8 +161,8 @@ def _capture_frame_from_camera(device_id: int = 0) -> np.ndarray:
                 "-t", "500",
                 "-n",
                 "-o", "-",
-                "--width", "640",
-                "--height", "480",
+                "--width", "1300",
+                "--height", "720",
                 "-e", "jpg",
             ]
             result = subprocess.run(
@@ -579,8 +578,8 @@ async def stream_camera(
                 "-n",
                 "--codec", "mjpeg",
                 "--quality", "80",
-                "--width", "640",
-                "--height", "480",
+                "--width", "1300",
+                "--height", "720",
                 "--framerate", str(framerate),
                 "-o", "-"
             ]
