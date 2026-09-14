@@ -1,10 +1,13 @@
 import asyncio
 import base64
+import fcntl
 import io
 import json
+import os
 import subprocess
 import time
 import uuid
+from pathlib import Path
 
 import cv2
 from fastapi.staticfiles import StaticFiles
@@ -29,6 +32,11 @@ from preprocessing.preprocessor import CONFIG_DEFAULT, Preprocessor
 
 templates = Jinja2Templates(directory="templates")
 
+GRAFANA_CLOUD_ENDPOINT = os.getenv("GRAFANA_CLOUD_ENDPOINT") or os.getenv("GRAFANA_CLOUD_LOKI_URL") or ""
+GRAFANA_CLOUD_TOKEN = os.getenv("GRAFANA_CLOUD_TOKEN") or os.getenv("GRAFANA_CLOUD_API_KEY") or ""
+GRAFANA_CLOUD_USERNAME = os.getenv("GRAFANA_CLOUD_USERNAME") or ""
+GRAFANA_CLOUD_PASSWORD = os.getenv("GRAFANA_CLOUD_PASSWORD") or ""
+
 app = FastAPI(
     title="YOLO Inference API",
     description="API REST para inferência com YOLOv8 e Câmera no Raspberry Pi 5",
@@ -36,7 +44,138 @@ app = FastAPI(
 )
 
 _metrics = {"total": 0, "success": 0, "total_ms": 0.0}
+_metrics_file = Path("/tmp/beirada_metrics.json")
+_metrics_lock_file = Path("/tmp/beirada_metrics.lock")
 _streaming_lock = asyncio.Lock()
+
+
+def _metrics_default():
+    return {"total": 0, "success": 0, "total_ms": 0.0}
+
+
+def _metrics_ensure_file():
+    if not _metrics_file.parent.exists():
+        _metrics_file.parent.mkdir(parents=True, exist_ok=True)
+
+    if not _metrics_file.exists():
+        _metrics_save(_metrics_default())
+
+
+def _metrics_load():
+    _metrics_ensure_file()
+    try:
+        with _metrics_file.open("r", encoding="utf-8") as fp:
+            data = json.load(fp)
+        merged = _metrics_default()
+        merged.update(data)
+        return merged
+    except Exception:
+        return _metrics_default()
+
+
+def _metrics_save(metrics):
+    _metrics_ensure_file()
+    tmp = _metrics_file.with_suffix(".json.tmp")
+    with tmp.open("w", encoding="utf-8") as fp:
+        json.dump(metrics, fp)
+    os.replace(str(tmp), str(_metrics_file))
+
+
+def _metrics_update(total_delta: int = 0, success_delta: int = 0, total_ms_delta: float = 0.0):
+    try:
+        _metrics_ensure_file()
+        with _metrics_lock_file.open("a+") as lock_fp:
+            fcntl.flock(lock_fp.fileno(), fcntl.LOCK_EX)
+            metrics = _metrics_load()
+            metrics["total"] += int(total_delta)
+            metrics["success"] += int(success_delta)
+            metrics["total_ms"] += float(total_ms_delta)
+            _metrics.update(metrics)
+            _metrics_save(metrics)
+    except Exception:
+        metrics = _metrics.copy()
+        metrics["total"] += int(total_delta)
+        metrics["success"] += int(success_delta)
+        metrics["total_ms"] += float(total_ms_delta)
+        _metrics.update(metrics)
+
+
+def _metrics_read_for_response():
+    metrics = _metrics_load()
+    _metrics.update(metrics)
+    return metrics
+
+
+def _grafana_cloud_build_payload(result: PredictResponse, request_id: str, confidence: float, model_name: str):
+    """Serializa o schema de resposta de detecção em um envelope JSON útil para Loki/Grafana Cloud."""
+    detections = []
+    for d in result.detections:
+        detections.append({
+            "label": d.label,
+            "confidence": d.confidence,
+            "bbox": d.bbox,
+        })
+
+    payload = {
+        "request_id": request_id,
+        "model_name": model_name,
+        "model_used": result.model_used,
+        "confidence": confidence,
+        "inference_ms": result.inference_ms,
+        "image_width": result.image_width,
+        "image_height": result.image_height,
+        "detections": detections,
+    }
+
+    return {
+        "streams": [
+            {
+                "stream": {
+                    "job": "beirada-inference",
+                    "source": "app.py",
+                    "model": result.model_used,
+                },
+                "values": [
+                    [
+                        str(int(time.time() * 1_000_000_000)),
+                        json.dumps(payload, ensure_ascii=False),
+                    ]
+                ],
+            }
+        ]
+    }
+
+
+def _send_to_grafana_cloud(result: PredictResponse, request_id: str, confidence: float, model_name: str):
+    """Envia o envelope da resposta como log/metric para Grafana Cloud quando a URL/token estiverem configurados."""
+    if not GRAFANA_CLOUD_ENDPOINT:
+        return
+
+    payload = _grafana_cloud_build_payload(result, request_id, confidence, model_name)
+    headers = {"Content-Type": "application/json"}
+
+    if GRAFANA_CLOUD_TOKEN:
+        headers["Authorization"] = f"Bearer {GRAFANA_CLOUD_TOKEN}"
+    elif GRAFANA_CLOUD_USERNAME and GRAFANA_CLOUD_PASSWORD:
+        token = base64.b64encode(f"{GRAFANA_CLOUD_USERNAME}:{GRAFANA_CLOUD_PASSWORD}".encode()).decode()
+        headers["Authorization"] = f"Basic {token}"
+
+    try:
+        # Endpoint Loki / Grafana Cloud Logs espera um POST de streams com arrays de valores.
+        httpx.post(
+            GRAFANA_CLOUD_ENDPOINT,
+            headers=headers,
+            json=payload,
+            timeout=5.0,
+        )
+    except Exception as exc:
+        log_event(
+            "grafana_cloud_export_error",
+            level="ERROR",
+            reason=str(exc),
+            request_id=request_id,
+            model=model_name,
+        )
 
 
 def _run_stream_or_camera_only(frame: np.ndarray, model, confidence: float):
@@ -248,7 +387,7 @@ async def health_check():
 @app.post("/predict", response_model=PredictResponse)
 def predict(request: PredictRequest):
     request_id = str(uuid.uuid4())[:8]
-    _metrics["total"] += 1
+    _metrics_update(total_delta=1)
 
     log_event(
         "predict_start",
@@ -277,8 +416,8 @@ def predict(request: PredictRequest):
             request.confidence,
         )
 
-        _metrics["success"] += 1
-        _metrics["total_ms"] += result.inference_ms
+        _metrics_update(success_delta=1, total_ms_delta=result.inference_ms)
+        _send_to_grafana_cloud(result, request_id, request.confidence, request.model_name)
 
         log_event(
             "predict_complete",
@@ -314,7 +453,7 @@ def predict(request: PredictRequest):
 def predict_image(request: PredictRequest):
     """Executa inferência em imagem enviada e retorna JPEG com caixas delimitadoras."""
     request_id = str(uuid.uuid4())[:8]
-    _metrics["total"] += 1
+    _metrics_update(total_delta=1)
 
     log_event(
         "predict_image_start",
@@ -331,8 +470,7 @@ def predict_image(request: PredictRequest):
         results = model(img_rgb, conf=request.confidence, verbose=False)
         elapsed_ms = (time.perf_counter() - t0) * 1000
 
-        _metrics["success"] += 1
-        _metrics["total_ms"] += elapsed_ms
+        _metrics_update(success_delta=1, total_ms_delta=elapsed_ms)
 
         annotated_array = results[0].plot()
         annotated_pil = Image.fromarray(annotated_array)
@@ -376,7 +514,7 @@ def predict_from_camera(
 ):
     """Captura uma foto pela câmera, executa inferência e retorna as detecções."""
     request_id = str(uuid.uuid4())[:8]
-    _metrics["total"] += 1
+    _metrics_update(total_delta=1)
 
     log_event(
         "camera_predict_start",
@@ -390,8 +528,8 @@ def predict_from_camera(
         img_rgb = _capture_frame_from_camera(device_id=device_id)
         result = _run_inference(img_rgb, model_name, confidence)
 
-        _metrics["success"] += 1
-        _metrics["total_ms"] += result.inference_ms
+        _metrics_update(success_delta=1, total_ms_delta=result.inference_ms)
+        _send_to_grafana_cloud(result, request_id, confidence, model_name)
 
         log_event(
             "camera_predict_complete",
@@ -421,7 +559,7 @@ def predict_from_camera_image(
 ):
     """Captura imagem da câmera, executa inferência e retorna JPEG anotado."""
     request_id = str(uuid.uuid4())[:8]
-    _metrics["total"] += 1
+    _metrics_update(total_delta=1)
 
     log_event(
         "camera_image_start",
@@ -439,8 +577,7 @@ def predict_from_camera_image(
         results = model(img_rgb, conf=confidence, verbose=False)
         elapsed_ms = (time.perf_counter() - t0) * 1000
 
-        _metrics["success"] += 1
-        _metrics["total_ms"] += elapsed_ms
+        _metrics_update(success_delta=1, total_ms_delta=elapsed_ms)
 
         annotated_array = results[0].plot()
         annotated_pil = Image.fromarray(annotated_array)
@@ -491,9 +628,8 @@ def predict_batch(request: BatchPredictRequest):
                 request.confidence,
             )
             results.append(result)
-            _metrics["success"] += 1
-            _metrics["total"] += 1
-            _metrics["total_ms"] += result.inference_ms
+            _metrics_update(total_delta=1, success_delta=1, total_ms_delta=result.inference_ms)
+            _send_to_grafana_cloud(result, request_id, request.confidence, request.model_name)
 
         total_ms = (time.perf_counter() - t_total) * 1000
 
@@ -521,16 +657,20 @@ def predict_batch(request: BatchPredictRequest):
 
 @app.get("/metrics", response_model=MetricsResponse)
 async def get_metrics():
+    metrics = _metrics_read_for_response()
     avg = (
-        _metrics["total_ms"] / _metrics["success"]
-        if _metrics["success"] > 0
+        metrics["total_ms"] / metrics["success"]
+        if metrics["success"] > 0
         else 0.0
     )
 
+    active_model = get_default_model_name()
+
     return MetricsResponse(
-        total_requests=_metrics["total"],
-        successful_requests=_metrics["success"],
+        total_requests=metrics["total"],
+        successful_requests=metrics["success"],
         avg_inference_ms=round(avg, 2),
+        model_name=active_model,
     )
 
 

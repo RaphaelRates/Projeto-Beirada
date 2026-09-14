@@ -34,5 +34,5 @@ COPY beirada_ia/app/ .
 
 EXPOSE 8000
 
-# Executa o Uvicorn
-CMD ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "2"]
+# Executa o Uvicorn com um worker único para manter o estado de métricas consistente
+CMD ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "1"]

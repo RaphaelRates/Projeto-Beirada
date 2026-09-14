@@ -46,6 +46,11 @@ async function updateMetrics() {
         document.getElementById("latency").textContent =
             `${data.avg_inference_ms} ms`;
 
+        const modelEl = document.getElementById("model");
+        if (modelEl && data.model_name) {
+            modelEl.textContent = data.model_name;
+        }
+
     } catch (err) {
 
         console.error(err);
