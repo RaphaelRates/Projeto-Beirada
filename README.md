@@ -257,5 +257,79 @@ Cada E18-D80NK tem três fios:
 - **Azul** → GND
 - **Preto** (sinal OUT) → GPIO do ESP32-S3, conforme a tabela de pinagem
 
+---
+
+## Passo 2: Preparação do Raspberry Pi 5
+
+### 2.1 Sistema operacional
+
+Grave o **Raspberry Pi OS 64-bit (Bookworm)** no cartão microSD usando o Raspberry Pi Imager e faça o primeiro boot.
+
+### 2.2 Habilitar e testar a câmera
+
+```bash
+# Para câmera CSI - deve abrir uma prévia por 5 segundos
+rpicam-hello --timeout 5000
+
+# Para webcam USB - deve listar /dev/video0
+v4l2-ctl --list-devices
+```
+
+### 2.3 Instalar Docker e Docker Compose
+
+```bash
+curl -fsSL https://get.docker.com | sudo sh
+sudo usermod -aG docker $USER
+```
+
+Faça **logout e login novamente** para que a mudança de grupo tenha efeito.
+
+### 2.4 Instalar Git e DVC
+
+```bash
+sudo apt update && sudo apt install -y git python3-pip
+pip install dvc --break-system-packages
+```
+
+### 2.5 Liberar acesso à porta serial
+
+```bash
+sudo usermod -aG dialout $USER
+```
+
+Novamente, é preciso relogar.
+
+---
+
+## Passo 3: Compilação e gravação do firmware ESP32-S3
+
+### 3.1 Instalar o ESP-IDF
+
+```bash
+mkdir -p ~/esp && cd ~/esp
+git clone -b v5.2 --recursive https://github.com/espressif/esp-idf.git
+cd esp-idf && ./install.sh esp32s3
+. ./export.sh          
+```
+
+### 3.2 Revisar a pinagem antes de compilar
+
+Abra `beirada_esp/ledc_basic/main/servo.h` e confirme que os GPIOs correspondem à sua montagem física (ver [seção 4](#4-tabela-de-pinagem)).
+
+### 3.3 Compilar e gravar
+
+```bash
+cd beirada_esp/ledc_basic
+
+idf.py set-target esp32s3
+idf.py build
+idf.py -p /dev/ttyACM0 flash monitor
+```
+
+Substitua `/dev/ttyACM0` pela porta do seu sistema (no Linux costuma ser `/dev/ttyUSB0` ou `/dev/ttyACM0`; no Windows, `COM3` etc.).
+
+---
+
+
 
 
