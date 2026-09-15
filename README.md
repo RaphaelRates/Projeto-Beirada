@@ -14,14 +14,13 @@
 3. [Esquemático elétrico](#esquemático-elétrico)
 4. [Tabela de pinagem](#tabela-de-pinagem)
 5. [Componentes da Solução](#componentes-da-solução)
-6. [Dependências](#dependências)
-7. [Estrutura das Pastas](#estrutura-das-pastas)
-8. [Pré-requisitos](#pré-requisitos)
-9. [Instruções de Configuração (Setup)](#instruções-de-configuração-setup)
+6. [Estrutura das Pastas](#estrutura-das-pastas)
+7. [Pré-requisitos](#pré-requisitos)
+8. [Instruções de Configuração (Setup)](#instruções-de-configuração-setup)
 
 ---
 
-## Visão Geral
+## 1. Visão Geral
 
 ### O Problema
 
@@ -35,7 +34,7 @@ A arquitetura utiliza uma câmera conectada a uma **Raspberry Pi 5** para captur
 
 ---
 
-## Diagrama de Arquitetura
+## 2. Diagrama de Arquitetura
 
 ```mermaid
 flowchart LR
@@ -83,23 +82,23 @@ flowchart LR
 
 ### Fluxo de um ciclo completo
 
-(TBD)
+**(TBD)**
 
 ---
 
-## Esquemático elétrico
+## 3. Esquemático elétrico
 
-(TBD)
+**(TBD)**
 
 ---
 
-## Tabela de pinagem
+## 4. Tabela de pinagem
 
-(TBD)
+**(TBD)**
 
---
+---
 
-## Componentes da Solução
+## 5. Componentes da Solução
 
 ### Hardware
 | Componente | Função na arquitetura |
@@ -122,106 +121,63 @@ flowchart LR
 | Orquestração | Docker Compose | -- | Sobe os serviços `yolo-api`, `yolo-stream` e `yolo-client` |
 ---
 
-## Dependências
-
-### Python - API e Streaming
-```
-fastapi==0.111.0
-uvicorn[standard]==0.29.0
-ultralytics==8.2.0
-Pillow==11.0.0
-numpy==1.26.4
-httpx==0.27.0
-opencv-python-headless==4.9.0.80
-flask==3.1.3
-pyserial==3.5.0
-```
-
-### Python - Cliente de teste
-```
-httpx==0.27.0
-Pillow==10.3.0
-```
-
-### Firmware - ESP32-S3
-- **ESP-IDF** (framework oficial Espressif)
-- **FreeRTOS** (filas e tasks por servo; já incluso no ESP-IDF)
-- Driver **LEDC** (controle de PWM/GPIO dos servomotores)
-
-### Plataformas e ferramentas externas
-- **Docker** e **Docker Compose** (orquestração dos serviços `yolo-api`, `yolo-stream`, `yolo-client`)
-- **rpicam-apps** (`rpicam-vid`/`rpicam-still`) -- captura via câmera CSI na Raspberry Pi
-- **DVC** -- versionamento do modelo `yolov8n.pt`
-- Porta serial USB para comunicação com o ESP32-S3
-  
----
-
-## Estrutura das Pastas
+## 6. Estrutura das Pastas
 
 ```
-
 Projeto-Beirada/
-├── .gitignore
 ├── README.md
 ├── LICENSE
-├── docker-compose.yml
-├── .dvc/
-│   └── config
-├── .github/
-│   └── workflows/
-│       └── beirada_deploy.yml
-├── beirada_esp/
+├── docker-compose.yml          # Orquestra os 3 serviços
+├── .dvc/config                 # Remote do DVC (ver Passo 4)
+├── .github/workflows/
+│   └── beirada_deploy.yml      # CI/CD
+│
+├── docs/
+│   ├── esquematicos/           # Arquivos-fonte (.fzz / .kicad_sch)
+│   └── imagens/                # Imagens e gifs do README
+│
+├── beirada_esp/                # ── FIRMWARE (ESP32-S3) ──
 │   └── ledc_basic/
 │       ├── CMakeLists.txt
-│       ├── README.md
 │       └── main/
-│           ├── CMakeLists.txt
-│           ├── ledc_basic_example_main.c
-│           ├── filas.c / filas.h
-│           └── servo.c / servo.h
-└── beirada_ia/
+│           ├── ledc_basic_example_main.c   # app_main: inicializa servos, filas, serial
+│           ├── servo.c / servo.h           # Pinagem, PWM LEDC, leitura de sensores
+│           ├── filas.c / filas.h           # Uma fila + uma task FreeRTOS por servo
+│           └── serial.c / serial.h         # Task UART: lê a classe vinda do RPi
+│
+└── beirada_ia/                 # ── VISÃO COMPUTACIONAL (RPi 5) ──
     ├── Dockerfile.api
     ├── Dockerfile.client
     ├── ruff.toml
     ├── app/
-    │   ├── app.py
-    │   ├── model.py
-    │   ├── schemas.py
+    │   ├── app.py              # Aplicação FastAPI e todos os endpoints
+    │   ├── model.py            # Carregamento e cache do modelo YOLO
+    │   ├── schemas.py          # Contratos Pydantic de entrada/saída
     │   ├── requirements.txt
-    │   ├── core/
+    │   ├── .env.grafana        # Credenciais do Grafana Cloud (preencher)
+    │   ├── core/               # Instâncias singleton (app, preprocessor, templates)
     │   ├── preprocessing/
-    │   │   ├── preprocessor.py
-    │   │   ├── experiments/
-    │   │   └── utils/
-    │   ├── services/
-    │   │   ├── capture_image_service.py
-    │   │   ├── inference_service.py
-    │   │   ├── log_service.py
-    │   │   └── serial_service.py
-    │   ├── static/
-    │   └── templates/
+    │   │   ├── preprocessor.py # Pipeline configurável de pré-processamento
+    │   │   ├── utils/          # letterbox e utilitários
+    │   │   └── experiments/    # Iterações de teste - fora do fluxo de produção
+    │   ├── static/ · templates/# Interface web de visualização
+    │   └── output/             # Métricas persistidas
     ├── client/
-    │   ├── client.py
-    │   └── requirements.txt
-    ├── dataset/
-    │   └── beirada.v1-v1/
-    │       └── train.py
-    ├── models/
-    │   └── yolov8n.pt.dvc
+    │   └── client.py           # Cliente de teste: envia imagens à API
+    ├── dataset/                # Dataset e script de treino
+    ├── models/                 # Pesos versionados via DVC (.pt.dvc)
     ├── scripts/
     │   ├── deploy.sh
     │   ├── inspect_dataset.py
     │   └── validate_model.py
     ├── stream/
-    │   ├── mjpeg_server.py
-    │   ├── captire_frames.py
-    │   ├── raw_server.py
-    │   ├── v1_naive.py
-    │   ├── v2_threaded.py
-    │   └── v3_optimized.py
+    │   ├── mjpeg_server.py     # Servidor MJPEG de produção
+    │   ├── v3_optimized.py     # Cmera + detector otimizados (em uso)
+    │   ├── v1_naive.py / v2_threaded.py   # Iterações anteriores - documentação
+    │   └── raw_server.py / captire_frames.py
     └── tests/
         ├── test_api.py
-        └── test_preprocessor.py          
+        └── test_preprocessor.py
 ```
 
 ---
