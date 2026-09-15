@@ -11,11 +11,13 @@
 ## Sumário
 1. [Visão Geral](#visão-geral)
 2. [Diagrama de Arquitetura](#diagrama-de-arquitetura)
-3. [Componentes da Solução](#componentes-da-solução)
-4. [Dependências](#dependências)
-5. [Estrutura das Pastas](#estrutura-das-pastas)
-6. [Pré-requisitos](#pré-requisitos)
-7. [Instruções de Configuração (Setup)](#instruções-de-configuração-setup)
+3. [Esquemático elétrico](#esquemático-elétrico)
+4. [Tabela de pinagem](#tabela-de-pinagem)
+5. [Componentes da Solução](#componentes-da-solução)
+6. [Dependências](#dependências)
+7. [Estrutura das Pastas](#estrutura-das-pastas)
+8. [Pré-requisitos](#pré-requisitos)
+9. [Instruções de Configuração (Setup)](#instruções-de-configuração-setup)
 
 ---
 
@@ -81,11 +83,21 @@ flowchart LR
 
 ### Fluxo de um ciclo completo
 
+(TBD)
+
 ---
 
 ## Esquemático elétrico
 
+(TBD)
+
 ---
+
+## Tabela de pinagem
+
+(TBD)
+
+--
 
 ## Componentes da Solução
 
