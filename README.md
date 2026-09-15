@@ -450,4 +450,153 @@ docker compose down
 
 ---
 
+## Passo 6: Verificação do resultado
+
+Esta é a seção que confirma que a replicação deu certo. Execute as verificações na ordem.
+
+### 6.1 Os contêineres subiram
+
+```bash
+docker compose ps
+```
+
+**Esperado:** três serviços com `STATUS` em `Up`, e `yolo-api` marcado como `(healthy)`.
+
+### 6.2 A API responde e o modelo carregou
+
+```bash
+curl http://localhost:8000/health
+```
+
+**Esperado:**
+
+```json
+{"status":"ok","model_loaded":true,"model_name":"yolov8n_v4.pt"}
+```
+
+Se `model_loaded` vier `false`, o caminho do modelo está errado; volte ao Passo 4.2.
+
+### 6.3 A inferência funciona sobre uma imagem
+
+```bash
+curl -X POST http://localhost:8000/predict/camera \
+     -H "Content-Type: application/json" -d '{}'
+```
+
+**Esperado:** JSON com um array `detections`, cada item contendo `label`, `confidence` e `bbox`, além de um campo de tempo de inferência.
+
+### 6.4 O stream em tempo real funciona
+
+Abra no navegador de outra máquina da mesma rede:
+
+```
+http://<IP-DO-RPI>:5000/stream
+http://<IP-DO-RPI>:8000/stream/view
+```
+
+**(IMAGEM: página /stream/view com bounding boxes desenhadas sobre peças reais)**
+
+**Esperado:** vídeo ao vivo da esteira com caixas delimitadoras e rótulos de classe sobre as peças.
+
+### 6.5 O ESP32 recebe comandos e aciona os servos
+
+Com o `idf.py monitor` aberto em um terminal:
+
+```bash
+echo "1" > /dev/ttyACM0
+```
+
+**Esperado no monitor:**
+
+```
+I (xxx) UART_COMUNICAO: Comando serial recebido: '1' -> Classe: 1
+I (xxx) LOGICA_FILAS: Peça classe 1 enfileirada para aguardar no Sensor 1
+I (xxx) LOGICA_FILAS: Servo 1 aguardando peça no Sensor de ENTRADA...
+```
+
+Agora passe a mão na frente do sensor de entrada 1:
+
+```
+I (xxx) LOGICA_FILAS: Peça na entrada do Servo 1! Acionando braço...
+I (xxx) LOGICA_FILAS: Aguardando confirmação no Sensor de SAÍDA 1...
+```
+
+E na frente do sensor de saída 1:
+
+```
+I (xxx) LOGICA_FILAS: Peça recebida na esteira perpendicular 1! Recolhendo servo.
+```
+
+O servo deve abrir no primeiro evento e voltar a 90° no segundo.
+
+### 6.6 Teste ponta a ponta
+
+**(IMAGEM: gif do ciclo completo - peça na esteira, detecção na tela, servo desviando)**
+
+Coloque uma peça na esteira em movimento e acompanhe:
+
+1. A peça aparece no stream com bounding box e rótulo correto.
+2. O sensor de entrada correspondente acusa a passagem no log do firmware.
+3. O servo aciona e desvia a peça.
+4. O sensor de saída confirma e o servo recolhe.
+
+### 6.7 Suíte de testes automatizados
+
+```bash
+docker compose exec yolo-api python -m pytest tests/ -v
+```
+
+**Esperado:** todos os testes de `test_api.py` e `test_preprocessor.py` passando.
+
+---
+
+## Passo 7: Calibração e ajustes
+
+### 7.1 Limiar de confiança
+
+Controlado por `CONFIDENCE` no `docker-compose.yml`:
+
+- **Valor alto (0,80+):** menos falsos positivos, mas peças podem passar sem ser classificadas.
+- **Valor baixo (0,50):** captura mais peças, ao custo de classificações erradas.
+- **Recomendado:** comece em 0,70, observe o stream por alguns minutos e ajuste.
+
+### 7.2 Ângulos dos servos
+
+Definidos em `servo.c`, função `servo_abrir()`:
+
+```c
+void servo_abrir(servo_id_t id)
+{
+    if (id == servo2) {
+        servo_angulo(id, 50);    // servo 2 é espelhado (lado oposto da esteira)
+    } else {
+        servo_angulo(id, 150);
+    }
+}
+```
+
+Ajuste esses valores conforme a geometria da sua esteira. A posição de repouso (90°, em `servo_desativar()`) deve deixar o braço paralelo à esteira, sem obstruir a passagem.
+
+### 7.3 Desempenho do streaming
+
+No comando do serviço `yolo-stream` no `docker-compose.yml`:
+
+| Parâmetro | Padrão | Efeito |
+|---|---|---|
+| `--infer-size` | 300 | Resolução de inferência. Menor - mais rápido, menos preciso |
+| `--infer-every` | 3 | Infere a cada N frames. Maior - menos carga, mais latência de reação |
+| `--device` | 0 | Índice da câmera |
+
+---
+
+## Licença
+
+Distribuído sob os termos do arquivo [LICENSE](LICENSE).
+
+---
+
+<p align="center">
+  <sub>Projeto V.I.T.A. · Computação na Beirada · 2026</sub>
+</p>
+
 
