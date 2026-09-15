@@ -71,23 +71,11 @@ DETECTIONS_COUNT_BY_CLASS = Gauge(
     "(zerado explicitamente quando a classe não aparece mais no frame)",
     ["class_name"],
 )
-DETECTION_CLASS_PERCENTAGE = Gauge(
-    "yolo_detection_class_percentage",
-    "Percentual (0-100) que a classe representa do total de detecções "
-    "monitoradas na última inferência",
-    ["class_name"],
-)
+
 DETECTION_CONFIDENCE = Gauge(
     "yolo_detection_confidence_last",
     "Última confiança média observada por classe na última inferência",
     ["class_name"],
-)
-DETECTION_CONFIDENCE_HISTOGRAM = Histogram(
-    "yolo_detection_confidence",
-    "Distribuição de confiança das detecções por classe "
-    "(use para média/percentis por classe ao longo do tempo no Grafana)",
-    ["class_name"],
-    buckets=[0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.65, 0.7, 0.75, 0.8, 0.85, 0.9, 0.95, 1.0],
 )
 
 STREAM_ACTIVE = Gauge(
@@ -99,9 +87,6 @@ STREAM_FPS = Gauge(
     "Taxa de quadros por segundo entregues pelo stream (média móvel simples)",
 )
 
-# Nomes em minúsculo -- é o formato usado como label `class_name` em todas
-# as métricas acima, para não gerar séries duplicadas por causa de
-# diferenças de maiúsculas/minúsculas entre versões do modelo.
 _MONITORED_CLASSES = {
     "serrote",
     "martelo",
@@ -242,7 +227,6 @@ def _publish_detection_metrics(model, results, logged_objects=None):
         DETECTIONS_COUNT_BY_CLASS.labels(cls_name).set(count)
 
         percentage = (count / total_monitored * 100) if total_monitored > 0 else 0.0
-        DETECTION_CLASS_PERCENTAGE.labels(cls_name).set(round(percentage, 2))
 
         avg_confidence = (confidence_sums[cls_name] / count) if count > 0 else 0.0
         DETECTION_CONFIDENCE.labels(cls_name).set(round(avg_confidence, 4))

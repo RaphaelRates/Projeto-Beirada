@@ -21,8 +21,13 @@ static void servo_task(void *pvParameters)
     while (1) {
         // 1. Aguarda a visão informar que há uma peça para este servo
         if (xQueueReceive(xServoQueues[servo_id], &piece_class, portMAX_DELAY) == pdTRUE) {
-            
-            ESP_LOGI(TAG, "Servo %d aguardando peça no Sensor de ENTRADA...", servo_id + 1);
+            // Se a classe recebida da Raspberry não for a do sensor atual, ignora.
+            if (piece_class != (uint8_t)(servo_id + 1)) {
+                ESP_LOGD(TAG, "Classe %d ignorada pelo sensor %d.", piece_class, servo_id + 1);
+                continue;
+            }
+
+            ESP_LOGI(TAG, "Sensor %d aguardando classe %d no SENSOR DE ENTRADA...", servo_id + 1, piece_class);
 
             // 2. Aguarda o SENSOR DE ENTRADA (esteira principal) detectar a peça
             while (!sensor_objeto_presente(servo_id, SENSOR_ENTRADA)) {
@@ -30,7 +35,7 @@ static void servo_task(void *pvParameters)
             }
 
             // 3. Peça chegou! Ativa o servo para empurrar/desviar
-            ESP_LOGI(TAG, "Peça na entrada do Servo %d! Acionando braço...", servo_id + 1);
+            ESP_LOGI(TAG, "Peça classe %d na entrada do Sensor %d! Acionando braço...", piece_class, servo_id + 1);
             servo_abrir(servo_id);
 
             // 4. Aguarda o SENSOR DE SAÍDA (esteira perpendicular) confirmar a recepção
@@ -43,7 +48,7 @@ static void servo_task(void *pvParameters)
             vTaskDelay(pdMS_TO_TICKS(150));
 
             // 5. Peça transferida com sucesso! Recolhe o servo
-            ESP_LOGI(TAG, "Peça recebida na esteira perpendicular %d! Recolhendo servo.", servo_id + 1);
+            ESP_LOGI(TAG, "Peça classe %d recebida no sensor %d. Recolhendo servo.", piece_class, servo_id + 1);
             servo_desativar(servo_id);
         }
     }
@@ -83,12 +88,15 @@ void peca_para_fila(uint8_t piece_class)
         return;
     }
 
-    servo_id_t target_servo = (servo_id_t)(piece_class - 1);
+    // A mesma classe recebida da Raspberry é distribuída para as 3 filas de sensores,
+    // para cada lógica verificar se o objeto correspondente chegou ao seu sensor.
+    for (int i = 0; i < SERVO_MAX_COUNT; i++) {
+        servo_id_t target_servo = (servo_id_t)i;
 
-    // Insere diretamente na fila correspondente
-    if (xQueueSend(xServoQueues[target_servo], &piece_class, pdMS_TO_TICKS(100)) != pdTRUE) {
-        ESP_LOGE(TAG, "Fila do Servo %d cheia! Peça descartada.", target_servo + 1);
-    } else {
-        ESP_LOGI(TAG, "Peça classe %d enfileirada para aguardar no Sensor %d", piece_class, target_servo + 1);
+        if (xQueueSend(xServoQueues[target_servo], &piece_class, pdMS_TO_TICKS(100)) != pdTRUE) {
+            ESP_LOGE(TAG, "Fila do Sensor %d cheia! Classe %d descartada.", target_servo + 1, piece_class);
+        } else {
+            ESP_LOGI(TAG, "Classe %d distribuída para a fila do Sensor %d.", piece_class, target_servo + 1);
+        }
     }
 }
