@@ -10,6 +10,8 @@ const uploadPreview = document.getElementById("upload-preview");
 const predictionStatus = document.getElementById("prediction-status");
 const predictionTime = document.getElementById("prediction-time");
 const predictionList = document.getElementById("prediction-list");
+const STREAM_RETRY_INTERVAL_MS = 5000;
+let reconnectTimer = null;
 
 function setOnline() {
 
@@ -25,18 +27,32 @@ function setOffline() {
 
     offline.classList.add("active");
 
-    statusText.textContent = "Offline";
-    statusFooter.textContent = "Offline";
+    statusText.textContent = "Sem conexão";
+    statusFooter.textContent = "Sem conexão";
 
     statusDot.className = "dot offline";
 }
 
+function scheduleStreamReconnect() {
+    if (reconnectTimer !== null) return;
+
+    reconnectTimer = setTimeout(() => {
+        reconnectTimer = null;
+        stream.src = `/stream/camera?retry=${Date.now()}`;
+    }, STREAM_RETRY_INTERVAL_MS);
+}
+
 stream.onload = () => {
+    if (reconnectTimer !== null) {
+        clearTimeout(reconnectTimer);
+        reconnectTimer = null;
+    }
     setOnline();
 };
 
 stream.onerror = () => {
     setOffline();
+    scheduleStreamReconnect();
 };
 
 async function updateMetrics() {
