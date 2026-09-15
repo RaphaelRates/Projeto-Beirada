@@ -12,9 +12,10 @@
 1. [Visão Geral](#visão-geral)
 2. [Diagrama de Arquitetura](#diagrama-de-arquitetura)
 3. [Componentes da Solução](#componentes-da-solução)
-4. [Dependências e Requisitos](#dependências-e-requisitos)
+4. [Dependências](#dependências)
 5. [Estrutura do Repositório](#estrutura-do-repositório)
-6. [Instruções de Instalação e Execução](#instruções-de-instalação-e-execução)
+6. [Pré-requisitos](#pré-requisitos)
+7. [Instruções de Configuração (Setup)](#instruções-de-configuração-(setup))
 
 ---
 
