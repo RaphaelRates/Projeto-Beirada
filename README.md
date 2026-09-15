@@ -9,14 +9,12 @@
 ---
 
 ## Sumário
-1. [Visão Geral](#visão-geral)
-2. [Diagrama de Arquitetura](#diagrama-de-arquitetura)
-3. [Esquemático elétrico](#esquemático-elétrico)
-4. [Tabela de pinagem](#tabela-de-pinagem)
-5. [Componentes da Solução](#componentes-da-solução)
-6. [Estrutura das Pastas](#estrutura-das-pastas)
-7. [Pré-requisitos](#pré-requisitos)
-8. [Instruções de Configuração (Setup)](#instruções-de-configuração-setup)
+1. [Visão Geral](#1-visão-geral)
+2. [Diagrama de Arquitetura](#2-diagrama-de-arquitetura)
+3. [Esquemático elétrico](#3-esquemático-elétrico)
+4. [Tabela de pinagem](#4-tabela-de-pinagem)
+5. [Componentes da Solução](#5-componentes-da-solução)
+6. [Estrutura das Pastas](#6-estrutura-das-pastas)
 
 ---
 
@@ -186,53 +184,54 @@ Projeto-Beirada/
 
 # PARTE 2: MANUAL DE REPLICAÇÃO
 
+## Pré-requisitos
+
+### Hardware que você precisa ter em mãos
+
+- [ ] Raspberry Pi 5 com fonte oficial de 27 W
+- [ ] Cartão microSD
+- [ ] Câmera Raspberry CSI **ou** webcam USB compatível com V4L2
+- [ ] Placa de desenvolvimento ESP32-S3
+- [ ] Cabo USB-C de dados (atenção: cabos "só carga" não funcionam)
+- [ ] 3 servomotores (SG90, MG90S ou equivalente)
+- [ ] 6 sensores ópticos E18-D80NK
+- [ ] 2 protoboards + jumpers macho-macho e macho-fêmea
+- [ ] Fonte externa 5 V com no mínimo 3 A
+- [ ] Esteira transportadora com velocidade constante
+- [ ] Peças de teste entre 10 e 15 cm na maior dimensão
+
+### Software no Raspberry Pi
+
+| Ferramenta | Versão mínima | Função |
+|---|---|---|
+| Raspberry Pi OS (64-bit, Bookworm) | — | Sistema operacional |
+| Docker Engine | 24.x | Executar os serviços |
+| Docker Compose | v2 | Orquestração |
+| Git | 2.x | Clonar o repositório |
+| DVC | 3.x | Baixar os pesos do modelo |
+
+### Software na máquina de desenvolvimento (para o firmware)
+
+| Ferramenta | Versão | Função |
+|---|---|---|
+| ESP-IDF | ≥ 5.0 | Compilar e gravar o firmware |
+| Python | 3.8+ | Requisito do ESP-IDF |
+
+> O ESP-IDF pode ser instalado no próprio Raspberry Pi, mas a compilação é consideravelmente mais lenta. Recomendamos compilar em um PC e gravar via USB.
+
 ---
 
-## Instruções de Configuração (Setup)
+## Passo 1: Montagem física do hardware
 
-A configuração do sistema é dividida em duas etapas principais: preparação do ambiente de visão computacional no Raspberry Pi e configuração do firmware responsável pelo controle dos atuadores no ESP32-S3.
+**(IMAGEM: foto da montagem real completa, vista de cima, com os componentes identificados por etiquetas numeradas.)**
 
-### 1. API de visão computacional + streaming (Raspberry Pi)
+### 1.1 Preparar os barramentos de energia
 
-```bash
-# 1. Clonar o repositório
-git clone <url-do-repositorio>
-cd Projeto-Beirada
+1. Na **protoboard 1**, conecte a fonte externa de 5 V aos trilhos de alimentação. Esta protoboard alimenta os servomotores.
+2. Na **protoboard 2**, faça o mesmo para os sensores.
+3. **Interligue o trilho GND das duas protoboards ao GND do ESP32-S3.** Sem esse terra comum nada funciona corretamente.
 
-# 2. Recuperar o modelo yolo-epi versionado via DVC
-dvc pull beirada_ia/models/yolov8n.pt.dvc
+### 1.2 Conectar os servomotores
 
-# 3. Subir os serviços (API, stream e cliente de teste)
-docker compose up --build
-```
-Antes de iniciar os serviços, é necessário garantir que o Raspberry Pi possui Docker, Docker Compose e DVC instalados e configurados.
+Para cada servo, siga a tabela de pinagem da [seção 4](#4-tabela-de-pinagem):
 
-Também é necessário conectar a câmera ao Raspberry Pi e verificar se ela está disponível para o serviço de streaming.
-
-O `docker-compose.yml` inicia:
-- **yolo-api** -- `http://localhost:8000` (rotas `/predict`, `/health`, `/metrics`, `/stream/camera`)
-- **yolo-stream** -- `http://localhost:5000` (stream MJPEG anotado)
-- **yolo-client** -- executa automaticamente inferências de teste com as imagens em `beirada_ia/client/images/`
-
-> A API espera acesso ao dispositivo serial `/dev/ttyACM0` (configurável via variável de ambiente `ESP32_SERIAL_PORT`) para se comunicar com o ESP32-S3.
-
-### 2. Firmware do ESP32-S3 (controle dos servomotores)
-
-```bash
-cd beirada_esp/ledc_basic
-
-# Configurar e compilar com o ESP-IDF
-idf.py set-target esp32s3
-idf.py build
-
-# Gravar no dispositivo e acompanhar o log serial
-idf.py -p <PORTA_SERIAL> flash monitor
-```
-
-> **Nota:** os experimentos em `beirada_ia/app/preprocessing/experiments/` e as versões `v1_naive.py` / `v2_threaded.py` do streaming documentam as iterações de otimização já testadas pela equipe, mas não fazem parte do fluxo de produção (`mjpeg_server.py` + `v3_optimized.py`).
-
-### 3. Montagem física (servomotores + sensor infravermelho E18-D80NK)
-
-- Posicionar servomotor aproximadamente 20cm da esteira alvo do objeto, do lado oposto.
-
-- Posicionar sensor E18-D80NK logo antes do servo motor, inclinado a 45° da esteira, no mesmo sentido de funcionamento da mesma, de forma que acompanhe a peça até que ela seja movida para a esteira paralela.
