@@ -16,9 +16,10 @@ import httpx
 import numpy as np
 from fastapi import FastAPI, HTTPException, Query, Request, Response
 from fastapi.responses import HTMLResponse, StreamingResponse
+import serial
 from model import get_default_model_name, load_model
 from PIL import Image
-from prometheus_client import Counter, Gauge, start_http_server
+from prometheus_client import Counter, Gauge, Histogram, start_http_server
 from schemas import (
     BatchPredictRequest,
     BatchPredictResponse,
@@ -29,11 +30,14 @@ from schemas import (
     PredictResponse,
 )
 
+from core.esp32 import iniciar, enviar, fechar
 from preprocessing.preprocessor import CONFIG_DEFAULT, Preprocessor
-from grafana_exporter import GrafanaCloudExporter
-from grafana_tracking import TrackAwareCounter
 
 templates = Jinja2Templates(directory="templates")
+
+SERIAL_PORT = "/dev/ttyUSB0"   # Linux/Pi  |  "COM3" no Windows
+BAUD = 115200
+
 
 try:
     _METRICS_PORT = int(os.environ.get("PROMETHEUS_PORT", "8001"))
@@ -41,28 +45,51 @@ try:
 except Exception:
     pass
 
+
+iniciar(SERIAL_PORT, BAUD)
+
 INFERENCE_TIME = Gauge(
     "yolo_inference_time_seconds",
     "Tempo de inferência do YOLO em segundos (última execução)",
 )
-DETECTIONS_COUNT = Gauge(
-    "yolo_detections_count",
-    "Número de objetos detectados na última inferência",
-)
-DETECTIONS_TOTAL = Counter(
-    "yolo_detections_total",
-    "Total cumulativo de objetos detectados pelo YOLO",
-)
-DETECTIONS_BY_CLASS = Counter(
+
+# ---------------------------------------------------------------------------
+# Métricas por classe (para os painéis de "quantidade por classe",
+# "percentual por classe" e "confiança por classe" no Grafana).
+#
+# Só publicamos as classes em _MONITORED_CLASSES. Todas as demais são
+# ignoradas e não tocam nenhum counter/gauge/histogram abaixo.
+# ---------------------------------------------------------------------------
+DETECTIONS_BY_CLASS_TOTAL = Counter(
     "yolo_detections_by_class_total",
     "Total cumulativo de objetos detectados pelo YOLO por classe",
     ["class_name"],
 )
-DETECTION_CONFIDENCE = Gauge(
-    "yolo_detection_confidence_last",
-    "Última confiança por classe observada na última inferência",
+DETECTIONS_COUNT_BY_CLASS = Gauge(
+    "yolo_detections_count_by_class",
+    "Quantidade de objetos da classe detectados na última inferência "
+    "(zerado explicitamente quando a classe não aparece mais no frame)",
     ["class_name"],
 )
+DETECTION_CLASS_PERCENTAGE = Gauge(
+    "yolo_detection_class_percentage",
+    "Percentual (0-100) que a classe representa do total de detecções "
+    "monitoradas na última inferência",
+    ["class_name"],
+)
+DETECTION_CONFIDENCE = Gauge(
+    "yolo_detection_confidence_last",
+    "Última confiança média observada por classe na última inferência",
+    ["class_name"],
+)
+DETECTION_CONFIDENCE_HISTOGRAM = Histogram(
+    "yolo_detection_confidence",
+    "Distribuição de confiança das detecções por classe "
+    "(use para média/percentis por classe ao longo do tempo no Grafana)",
+    ["class_name"],
+    buckets=[0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.65, 0.7, 0.75, 0.8, 0.85, 0.9, 0.95, 1.0],
+)
+
 STREAM_ACTIVE = Gauge(
     "yolo_stream_active",
     "1 se há um stream de câmera em andamento, 0 caso contrário",
@@ -72,6 +99,9 @@ STREAM_FPS = Gauge(
     "Taxa de quadros por segundo entregues pelo stream (média móvel simples)",
 )
 
+# Nomes em minúsculo -- é o formato usado como label `class_name` em todas
+# as métricas acima, para não gerar séries duplicadas por causa de
+# diferenças de maiúsculas/minúsculas entre versões do modelo.
 _MONITORED_CLASSES = {
     "serrote",
     "martelo",
@@ -159,25 +189,72 @@ def log_event(event: str, level: str = "INFO", **kwargs):
     print(json.dumps(record, ensure_ascii=False), flush=True)
 
 
-def _publish_detection_metrics(model, results):
-    """Publica para Prometheus/Grafana apenas as quatro classes de interesse
-    do projeto: serrote, martelo, parafuso e estilete. As restantes são
-    filtradas do array de observabilidade e não alteram os counters/gauges.
+def _publish_detection_metrics(model, results, logged_objects=None):
+    """Publica para Prometheus/Grafana as métricas por classe: quantidade na
+    última inferência, percentual sobre o total monitorado e confiança.
+
+    Só as classes em _MONITORED_CLASSES são publicadas. Importante: classes
+    monitoradas que NÃO aparecem nesta inferência são explicitamente zeradas
+    (contagem e percentual) -- como são Gauges, sem isso o Grafana ficaria
+    mostrando o último valor visto, mesmo que o objeto já tenha saído do
+    campo de visão da câmera.
     """
-    summary = []
+    counts = {cls: 0 for cls in _MONITORED_CLASSES}
+    confidence_sums = {cls: 0.0 for cls in _MONITORED_CLASSES}
+
     for r in results:
         for box in r.boxes:
             cls_id = int(box.cls[0].item())
             conf_val = float(box.conf[0].item())
-            cls_name = model.names[cls_id]
-            cls_name_lower = cls_name.lower()
+            cls_name = model.names[cls_id].lower()
+            track_id = None
+            if getattr(box, "id", None) is not None:
+                track_id = int(box.id[0].item())
 
-            if cls_name_lower not in _MONITORED_CLASSES:
+            object_key = (cls_name, track_id)
+            should_log = (
+                logged_objects is None
+                or (track_id is not None and object_key not in logged_objects)
+            )
+            if should_log:
+                enviar(f"{cls_name},{round(conf_val, 4)},{track_id}")
+                log_event(
+                    "object_detected",
+                    class_name=cls_name,
+                    confidence=round(conf_val, 4),
+                    track_id=track_id,
+                )
+                if logged_objects is not None and track_id is not None:
+                    logged_objects.add(object_key)
+
+            if cls_name not in _MONITORED_CLASSES:
                 continue
 
-            DETECTIONS_BY_CLASS.labels(cls_name).inc()
-            DETECTION_CONFIDENCE.labels(cls_name).set(conf_val)
-            summary.append({"class": cls_name, "confidence": round(conf_val, 4)})
+            counts[cls_name] += 1
+            confidence_sums[cls_name] += conf_val
+            DETECTIONS_BY_CLASS_TOTAL.labels(cls_name).inc()
+            DETECTION_CONFIDENCE_HISTOGRAM.labels(cls_name).observe(conf_val)
+
+    total_monitored = sum(counts.values())
+
+    summary = []
+    for cls_name, count in counts.items():
+        DETECTIONS_COUNT_BY_CLASS.labels(cls_name).set(count)
+
+        percentage = (count / total_monitored * 100) if total_monitored > 0 else 0.0
+        DETECTION_CLASS_PERCENTAGE.labels(cls_name).set(round(percentage, 2))
+
+        avg_confidence = (confidence_sums[cls_name] / count) if count > 0 else 0.0
+        DETECTION_CONFIDENCE.labels(cls_name).set(round(avg_confidence, 4))
+
+        if count > 0:
+            summary.append({
+                "class": cls_name,
+                "count": count,
+                "percentage": round(percentage, 2),
+                "avg_confidence": round(avg_confidence, 4),
+            })
+
     return summary
 
 
@@ -185,12 +262,7 @@ _preprocessor = Preprocessor(CONFIG_DEFAULT)  # instância global
 
 
 def _run_inference(image_np: np.ndarray, model_name: str, confidence: float) -> PredictResponse:
-    """Roda a inferência com pré-processamento e atualiza as métricas Prometheus.
-    Observação: antes havia duas funções `_run_inference` no arquivo — a segunda
-    sobrescrevia a primeira, então o pré-processamento (letterbox + ajuste de
-    bbox) nunca era realmente executado nos endpoints /predict*. Esta versão
-    unifica as duas: mantém o pré-processamento E a atualização de métricas.
-    """
+    """Roda a inferência com pré-processamento e atualiza as métricas Prometheus."""
     model = load_model(model_name)
 
     frame_bgr = image_np[:, :, ::-1]
@@ -200,12 +272,8 @@ def _run_inference(image_np: np.ndarray, model_name: str, confidence: float) -> 
     t0 = time.perf_counter()
     results = model(frame_ready, conf=confidence, verbose=False)
     elapsed_ms = (time.perf_counter() - t0) * 1000
-    
-    total_detections = sum(len(r.boxes) for r in results)
-    INFERENCE_TIME.set(elapsed_ms / 1000)
-    DETECTIONS_COUNT.set(total_detections)
-    DETECTIONS_TOTAL.inc(total_detections)
 
+    INFERENCE_TIME.set(elapsed_ms / 1000)
     _publish_detection_metrics(model, results)
 
     detections = []
@@ -233,37 +301,43 @@ def _run_inference(image_np: np.ndarray, model_name: str, confidence: float) -> 
     )
 
 
-def _run_stream_or_camera_only(frame: np.ndarray, model, confidence: float):
+def _run_stream_or_camera_only(frame: np.ndarray, model, confidence: float, logged_objects=None):
     """Roda a inferência YOLO em um frame de streaming e atualiza as métricas
-    Prometheus em tempo real, para que o Grafana reflita o stream ao vivo.
+    Prometheus em tempo real -- incluindo as métricas por classe (contagem,
+    percentual e confiança), para que o Grafana reflita o stream ao vivo.
 
-    Fallback: se o modelo não puder rodar, devolve o frame bruto da câmera e
-    marca o erro no contador `yolo_stream_inference_errors_total`. Isso mantém
-    o stream vivo mesmo quando o modelo está offline ou indisponível.
+    Fallback: se o modelo não puder rodar, devolve o frame bruto da câmera.
+    Isso mantém o stream vivo mesmo quando o modelo está offline ou
+    indisponível.
     """
     if model is None:
         return frame
 
     try:
         t0 = time.perf_counter()
-        results = model.predict(
+        results = model.track(
             source=frame,
             conf=confidence,
-            imgsz=300,
+            imgsz=352,
             verbose=False,
             half=True,
-            iou=0.15,
+            iou=0.4,
+            persist=True,
+            tracker="bytetrack.yaml",
         )
         elapsed_ms = (time.perf_counter() - t0) * 1000
 
-        total_detections = sum(len(r.boxes) for r in results)
         INFERENCE_TIME.set(elapsed_ms / 1000)
-        DETECTIONS_COUNT.set(total_detections)
-        DETECTIONS_TOTAL.inc(total_detections)
+        _publish_detection_metrics(model, results, logged_objects=logged_objects)
 
         return results[0].plot()
     except Exception as exc:
-        log_event("stream_yolo_fallback_camera_only",level="WARN",reason=str(exc),confidence=confidence,)
+        log_event(
+            "stream_yolo_fallback_camera_only",
+            level="WARN",
+            reason=str(exc),
+            confidence=confidence,
+        )
         return frame
 
 
@@ -281,7 +355,7 @@ def _load_image_from_request(request: PredictRequest) -> np.ndarray:
         return _decode_image(request.image_base64)
 
     try:
-        resp = httpx.get(request.image_url,timeout=15.0,follow_redirects=True,)
+        resp = httpx.get(request.image_url, timeout=15.0, follow_redirects=True)
         resp.raise_for_status()
         img = Image.open(io.BytesIO(resp.content)).convert("RGB")
         return np.array(img)
@@ -298,7 +372,7 @@ def _capture_frame_from_camera(device_id: int = 0) -> np.ndarray:
                 "-t", "500",
                 "-n",
                 "-o", "-",
-                "--width", "1300",
+                "--width", "1352",
                 "--height", "720",
                 "-e", "jpg",
             ]
@@ -433,17 +507,13 @@ def predict_image(request: PredictRequest):
         results = model(img_rgb, conf=request.confidence, verbose=False)
         elapsed_ms = (time.perf_counter() - t0) * 1000
 
-        total_detections = sum(len(r.boxes) for r in results)
         INFERENCE_TIME.set(elapsed_ms / 1000)
-        DETECTIONS_COUNT.set(total_detections)
-        DETECTIONS_TOTAL.inc(total_detections)
-
-        classes_confidence_array = _publish_detection_metrics(model, results)
+        classes_summary = _publish_detection_metrics(model, results)
         log_event(
             "predict_image_detections",
             request_id=request_id,
             model=request.model_name,
-            detections=classes_confidence_array,
+            detections=classes_summary,
         )
 
         _metrics_update(success_delta=1, total_ms_delta=elapsed_ms)
@@ -552,17 +622,13 @@ def predict_from_camera_image(
         results = model(img_rgb, conf=confidence, verbose=False)
         elapsed_ms = (time.perf_counter() - t0) * 1000
 
-        total_detections = sum(len(r.boxes) for r in results)
         INFERENCE_TIME.set(elapsed_ms / 1000)
-        DETECTIONS_COUNT.set(total_detections)
-        DETECTIONS_TOTAL.inc(total_detections)
-
-        classes_confidence_array = _publish_detection_metrics(model, results)
+        classes_summary = _publish_detection_metrics(model, results)
         log_event(
             "camera_image_detections",
             request_id=request_id,
             model=model_name,
-            detections=classes_confidence_array,
+            detections=classes_summary,
         )
 
         _metrics_update(success_delta=1, total_ms_delta=elapsed_ms)
@@ -670,10 +736,12 @@ async def stream_camera(
 ):
     """Transmite vídeo contínuo da câmera com detecções YOLO em todo frame.
 
-    Durante todo o ciclo de vida do stream, as métricas Prometheus
-    (yolo_stream_active, yolo_stream_fps, yolo_stream_frames_total,
-    yolo_inference_time_seconds, yolo_detections_count, etc.) são atualizadas
-    a cada frame processado, para que o Grafana acompanhe em tempo real.
+    A cada frame processado, além de yolo_stream_active/yolo_stream_fps, são
+    atualizadas as métricas por classe (yolo_detections_count_by_class,
+    yolo_detection_class_percentage, yolo_detection_confidence_last e o
+    histograma yolo_detection_confidence), para que o Grafana acompanhe em
+    tempo real quantidade, percentual e confiança por classe durante o
+    stream ao vivo.
     """
 
     if _streaming_lock.locked():
@@ -693,6 +761,8 @@ async def stream_camera(
             reason=str(exc),
         )
 
+    logged_objects = set()
+
     # Tamanho máximo que o buffer pode atingir antes de ser descartado
     # (evita crescimento indefinido caso os marcadores JPEG nunca sejam
     # encontrados, por exemplo por corrupção no stream do rpicam-vid).
@@ -700,7 +770,7 @@ async def stream_camera(
 
     def run_inference(frame):
         """Executa a inferência YOLO quando o modelo estiver disponível. Senão devolve o frame bruto."""
-        return _run_stream_or_camera_only(frame, model, confidence)
+        return _run_stream_or_camera_only(frame, model, confidence, logged_objects)
 
     async def frame_generator():
         async with _streaming_lock:
@@ -709,7 +779,17 @@ async def stream_camera(
             fps_last_ts = time.perf_counter()
             fps_smoothed = 0.0
 
-            cmd = ["rpicam-vid","-t", "0","-n","--codec", "mjpeg","--quality", "80","--width", "1280","--height", "720","--framerate", str(framerate),"-o", "-"]
+            cmd = [
+                "rpicam-vid",
+                "-t", "0",
+                "-n",
+                "--codec", "mjpeg",
+                "--quality", "80",
+                "--width", "1352",
+                "--height", "720",
+                "--framerate", str(framerate),
+                "-o", "-",
+            ]
 
             proc = None
             reader_task = None
@@ -726,7 +806,7 @@ async def stream_camera(
                 try:
                     while True:
 
-                        chunk = await loop.run_in_executor(None, proc.stdout.read, 65536)                        
+                        chunk = await loop.run_in_executor(None, proc.stdout.read, 65536)
 
                         if not chunk:
                             break
@@ -734,7 +814,7 @@ async def stream_camera(
                         buffer += chunk
 
                         if len(buffer) > MAX_BUFFER_SIZE:
-                            log_event("stream_buffer_overflow",level="WARN",size=len(buffer),)
+                            log_event("stream_buffer_overflow", level="WARN", size=len(buffer))
                             buffer = b""
                             continue
 
@@ -744,7 +824,7 @@ async def stream_camera(
                             if start == -1:
                                 break
 
-                            end = buffer.find(b"\xff\xd9",start + 2,)
+                            end = buffer.find(b"\xff\xd9", start + 2)
 
                             if end == -1:
                                 break
@@ -763,11 +843,11 @@ async def stream_camera(
                 except asyncio.CancelledError:
                     raise
                 except Exception as e:
-                    log_event("stream_reader_error",level="ERROR",reason=str(e),)
+                    log_event("stream_reader_error", level="ERROR", reason=str(e))
 
             try:
-                proc = subprocess.Popen(cmd,stdout=subprocess.PIPE,stderr=subprocess.PIPE,bufsize=0,)
-                log_event("stream_started", pid=proc.pid,model=model_name,confidence=confidence,)
+                proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, bufsize=0)
+                log_event("stream_started", pid=proc.pid, model=model_name, confidence=confidence)
 
                 loop = asyncio.get_running_loop()
                 reader_task = asyncio.create_task(read_frames())
@@ -778,7 +858,7 @@ async def stream_camera(
                         break
 
                     try:
-                        raw_frame = await asyncio.wait_for(latest_frame_queue.get(),timeout=2.0,)
+                        raw_frame = await asyncio.wait_for(latest_frame_queue.get(), timeout=2.0)
                     except asyncio.TimeoutError:
                         if reader_task.done() or proc.poll() is not None:
                             break
@@ -786,8 +866,8 @@ async def stream_camera(
                         continue
 
                     try:
-                        jpg = np.frombuffer(raw_frame,dtype=np.uint8,)
-                        frame = cv2.imdecode(jpg,cv2.IMREAD_COLOR,)
+                        jpg = np.frombuffer(raw_frame, dtype=np.uint8)
+                        frame = cv2.imdecode(jpg, cv2.IMREAD_COLOR)
 
                         if frame is None:
                             continue
@@ -801,18 +881,14 @@ async def stream_camera(
                         success, encoded = cv2.imencode(
                             ".jpg",
                             frame,
-                            [
-                                cv2.IMWRITE_JPEG_QUALITY,
-                                70,
-                            ],
+                            [cv2.IMWRITE_JPEG_QUALITY, 70],
                         )
 
                         if not success:
                             continue
 
-                        # Atualiza FPS entregue (média móvel exponencial)
-                        # e contador de frames, para o Grafana acompanhar
-                        # a saúde do stream em tempo real.
+                        # Atualiza FPS entregue (média móvel exponencial),
+                        # para o Grafana acompanhar a saúde do stream.
                         now = time.perf_counter()
                         instant_fps = 1.0 / max(now - fps_last_ts, 1e-6)
                         fps_smoothed = (
@@ -830,11 +906,7 @@ async def stream_camera(
                         )
 
                     except Exception as e:
-                        log_event(
-                            "stream_frame_error",
-                            level="ERROR",
-                            reason=str(e),
-                        )
+                        log_event("stream_frame_error",level="ERROR",reason=str(e),)
 
             finally:
 
@@ -857,24 +929,11 @@ async def stream_camera(
 
                     if proc.stderr:
 
-                        stderr_output = (
-                            proc.stderr.read()
-                            .decode(errors="ignore")
-                            .strip()
-                        )
+                        stderr_output = (proc.stderr.read().decode(errors="ignore").strip())
 
                         if stderr_output:
-                            log_event(
-                                "stream_camera_stderr",
-                                level="WARN",
-                                output=stderr_output,
-                            )
-
-                    log_event(
-                        "stream_stopped",
-                        pid=proc.pid,
-                    )
-
+                            log_event("stream_camera_stderr",level="WARN",output=stderr_output,)
+                    log_event("stream_stopped",pid=proc.pid,)
 
     return StreamingResponse(
         frame_generator(),

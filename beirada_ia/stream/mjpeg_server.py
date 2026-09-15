@@ -99,7 +99,7 @@ def index():
     </head>
     <body>
         <h1>YOLOv8 — Raspberry Pi 5 — Tempo Real</h1>
-        <img src='/stream' width='1300' height='720'/>
+        <img src='/stream' width='1352' height='720'/>
         <p>Stream MJPEG com inferência YOLO e anotações em tempo real.</p>
     </body>
     </html>
@@ -136,13 +136,13 @@ def health():
 def parse_args():
     p = argparse.ArgumentParser()
     p.add_argument("--device",     type=int,   default=0)
-    p.add_argument("--width",       type=int,   default=1300)
+    p.add_argument("--width",       type=int,   default=1352)
     p.add_argument("--height",      type=int,   default=720)
     p.add_argument("--fps",         type=int,   default=40)
     p.add_argument("--model",       type=str,   default="models/yolov8n_v4_v4_v3.pt")
     p.add_argument("--conf",        type=float, default=0.65)
     p.add_argument("--infer-every", type=int,   default=2)
-    p.add_argument("--infer-size",  type=int,   default=320)
+    p.add_argument("--infer-size",  type=int,   default=352)
     p.add_argument("--port",        type=int,   default=5000)
     p.add_argument("--host",        type=str,   default="0.0.0.0")
     return p.parse_args()

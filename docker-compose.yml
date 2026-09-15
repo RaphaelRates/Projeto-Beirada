@@ -60,7 +60,7 @@ services:
       python3 stream/mjpeg_server.py
       --device 0
       --infer-every 3
-      --infer-size 300
+      --infer-size 352
       --port 5000
     networks:
       - yolo-net

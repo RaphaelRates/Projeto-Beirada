@@ -20,7 +20,7 @@ class PreprocessConfig:
     Configuração imutável do pipeline de pré-processamento.
     Instanciar uma vez e reutilizar para todos os frames.
     """
-    infer_size:    int   = 320
+    infer_size:    int   = 352
     convert_rgb:   bool  = True
     use_letterbox: bool  = True
     gaussian_blur: bool  = False
@@ -147,7 +147,7 @@ class Preprocessor:
 
 
 CONFIG_DEFAULT = PreprocessConfig(
-    infer_size=320,
+    infer_size=352,
     convert_rgb=True,
     use_letterbox=True,
     gaussian_blur=False,
@@ -156,7 +156,7 @@ CONFIG_DEFAULT = PreprocessConfig(
 
 
 CONFIG_LOW_LIGHT = PreprocessConfig(
-    infer_size=320,
+    infer_size=352,
     convert_rgb=True,
     use_letterbox=True,
     clahe=True,
@@ -167,7 +167,7 @@ CONFIG_LOW_LIGHT = PreprocessConfig(
 
 
 CONFIG_HIGH_QUALITY = PreprocessConfig(
-    infer_size=1300,
+    infer_size=1352,
     convert_rgb=True,
     use_letterbox=True,
     gaussian_blur=False,

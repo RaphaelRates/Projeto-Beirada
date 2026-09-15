@@ -56,6 +56,7 @@ body{
 
 .stream-container{
     padding:16px;
+    overflow:auto;
 }
 
 .stream-wrapper{
@@ -95,6 +96,97 @@ body{
     display:flex;
 }
 
+.upload-panel{
+    margin-top:16px;
+    padding:18px;
+    background:#171b24;
+    border:1px solid #252b36;
+    border-radius:12px;
+}
+
+.upload-heading{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:16px;
+}
+
+.upload-heading h2{
+    font-size:1.1rem;
+}
+
+.upload-heading p{
+    margin-top:5px;
+    color:#9aa0aa;
+    font-size:.9rem;
+}
+
+#image-upload{
+    display:none;
+}
+
+.upload-button{
+    padding:10px 16px;
+    border-radius:8px;
+    background:#2563eb;
+    cursor:pointer;
+    font-weight:600;
+    white-space:nowrap;
+}
+
+.upload-button:hover{
+    background:#1d4ed8;
+}
+
+.upload-result{
+    display:grid;
+    grid-template-columns:minmax(180px, 280px) 1fr;
+    gap:18px;
+    margin-top:18px;
+    padding-top:18px;
+    border-top:1px solid #252b36;
+}
+
+.upload-result[hidden]{
+    display:none;
+}
+
+#upload-preview{
+    width:100%;
+    max-height:220px;
+    object-fit:contain;
+    background:#0f1117;
+    border-radius:8px;
+}
+
+.prediction-meta{
+    display:flex;
+    justify-content:space-between;
+    gap:12px;
+    color:#9aa0aa;
+}
+
+.prediction-list{
+    display:grid;
+    gap:8px;
+    margin-top:14px;
+    padding:0;
+    list-style:none;
+}
+
+.prediction-list li{
+    display:flex;
+    justify-content:space-between;
+    gap:12px;
+    padding:9px 11px;
+    background:#0f1117;
+    border-radius:6px;
+}
+
+.prediction-list li span{
+    color:#60a5fa;
+}
+
 .offline-content{
     text-align:center;
 }
@@ -131,4 +223,27 @@ body{
 
 .metric strong{
     margin-top:4px;
+}
+
+@media (max-width:700px){
+    .upload-heading,
+    .upload-result{
+        grid-template-columns:1fr;
+        flex-direction:column;
+        align-items:stretch;
+    }
+
+    .upload-button{
+        text-align:center;
+    }
+
+    .metrics{
+        grid-template-columns:repeat(3,1fr);
+        padding:10px 0;
+        gap:10px 0;
+    }
+
+    .metric:nth-child(n+4){
+        display:none;
+    }
 }

@@ -161,7 +161,7 @@ class YOLOInference:
 def parse_args():
     p = argparse.ArgumentParser()
     p.add_argument("--device",  type=int,   default=0)
-    p.add_argument("--width",   type=int,   default=1300)
+    p.add_argument("--width",   type=int,   default=1352)
     p.add_argument("--height",  type=int,   default=720)
     p.add_argument("--fps",     type=int,   default=30)
     p.add_argument("--model",   type=str,   default="models/yolov8n_v4_v3_v3_v3_v3_v3_v3_v3.pt")

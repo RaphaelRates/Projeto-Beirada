@@ -47,7 +47,7 @@ def parse_args():
                    help="Total de frames a capturar")
     p.add_argument("--interval", type=float, default=1.5,
                    help="Intervalo entre capturas em segundos")
-    p.add_argument("--width",    type=int, default=1300)
+    p.add_argument("--width",    type=int, default=1352)
     p.add_argument("--height",   type=int, default=720)
     p.add_argument("--manual", action="store_true",
                    help="Captura manual: pressione ENTER a cada frame, em vez de intervalo automático")

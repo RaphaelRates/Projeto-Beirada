@@ -240,15 +240,15 @@ class RealtimeDetector:
 def parse_args():
     p = argparse.ArgumentParser()
     p.add_argument("--device",      type=int,   default=0)
-    p.add_argument("--width",        type=int,   default=1300)
+    p.add_argument("--width",        type=int,   default=1352)
     p.add_argument("--height",       type=int,   default=720)
     p.add_argument("--fps",          type=int,   default=40)
     p.add_argument("--model",        type=str,   default="models/yolov8n_v4_v3_v3.pt")
     p.add_argument("--conf",         type=float, default=0.70)
     p.add_argument("--infer-every",  type=int,   default=3,
                    help="Executa YOLO a cada N frames (padrão: 3)")
-    p.add_argument("--infer-size",   type=int,   default=300,
-                   help="Resolução de inferência em px (padrão: 300)")
+    p.add_argument("--infer-size",   type=int,   default=352,
+                   help="Resolução de inferência em px (padrão: 352)")
     p.add_argument("--output",       type=str,   default=None,
                    help="Salva o stream anotado em arquivo .avi (opcional)")
     p.add_argument("--no-display",   action="store_true",

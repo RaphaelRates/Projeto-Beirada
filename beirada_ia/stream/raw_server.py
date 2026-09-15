@@ -120,7 +120,7 @@ def snapshot():
 def parse_args():
     p = argparse.ArgumentParser()
     p.add_argument("--device", type=int, default=0)
-    p.add_argument("--width", type=int, default=1300)
+    p.add_argument("--width", type=int, default=1352)
     p.add_argument("--height", type=int, default=720)
     p.add_argument("--fps", type=int, default=15)
     p.add_argument("--port", type=int, default=5001)

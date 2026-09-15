@@ -9,7 +9,7 @@ import numpy as np
 
 def letterbox(
     frame: np.ndarray,
-    target_size: int = 1300,
+    target_size: int = 1352,
     pad_color: int = 114,
 ) -> Tuple[np.ndarray, float, Tuple[int, int]]:
     """
