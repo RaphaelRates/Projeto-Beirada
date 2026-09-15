@@ -13,9 +13,9 @@
 2. [Diagrama de Arquitetura](#diagrama-de-arquitetura)
 3. [Componentes da Solução](#componentes-da-solução)
 4. [Dependências](#dependências)
-5. [Estrutura do Repositório](#estrutura-do-repositório)
+5. [Estrutura das Pastas](#estrutura-das-pastas)
 6. [Pré-requisitos](#pré-requisitos)
-7. [Instruções de Configuração (Setup)](#instruções-de-configuração-(setup))
+7. [Instruções de Configuração (Setup)](#instruções-de-configuração-setup)
 
 ---
 
