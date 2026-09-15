@@ -35,38 +35,55 @@ A arquitetura utiliza uma câmera conectada a uma **Raspberry Pi 5** para captur
 
 ## Diagrama de Arquitetura
 
-O diagrama abaixo apresenta o fluxo integrado entre os componentes de **Visão Computacional (Edge AI)** e **IoT/Embarcados**:
-
 ```mermaid
 flowchart LR
-    subgraph RPI["Raspberry Pi 5 (Borda / Edge AI)"]
-        CAM["Câmera CSI / USB<br>(rpicam-vid / OpenCV)"]
-        PRE["Preprocessor<br>(beirada_ia/app/preprocessing/)"]
-        YOLO["Modelo YOLOv8<br>(beirada_ia/models/yolov8n.pt.dvc)"]
-        API["FastAPI / Uvicorn<br>(beirada_ia/app/app.py)"]
-        STREAM["Servidor MJPEG<br>(beirada_ia/stream/mjpeg_server.py)"]
-        SERIAL["Serviço Serial<br>(beirada_ia/app/services/serial_service.py)"]
+    subgraph RPI["Raspberry Pi 5 — Borda (Edge AI)"]
+        CAM["Câmera CSI/USB<br/>(OpenCV · rpicam-apps)"]
+        PRE["Preprocessor<br/>app/preprocessing/preprocessor.py"]
+        YOLO["Modelo YOLOv8n<br/>models/yolov8n_v4.pt"]
+        API["FastAPI · Uvicorn<br/>app/app.py :8000"]
+        STREAM["Servidor MJPEG<br/>stream/mjpeg_server.py :5000"]
     end
 
-    subgraph CONECT["Conectividade & Docker"]
-        USB["Porta Serial USB<br>/dev/ttyACM0 - 115200 baud"]
-        DOCKER["Docker Compose<br>(docker-compose.yml)"]
+    subgraph LINK["Enlace físico"]
+        USB["USB CDC / UART0<br/>/dev/ttyACM0 · 115200 8N1"]
     end
 
-    subgraph ESP["ESP32-S3 (Firmware C / ESP-IDF)"]
-        FILAS["Gerenciador de Filas<br>(beirada_esp/ledc_basic/main/filas.c)"]
-        SERVOS["Controle PWM LEDC Servos<br>(beirada_esp/ledc_basic/main/servo.c)"]
+    subgraph ESP["ESP32-S3 — Firmware C (ESP-IDF / FreeRTOS)"]
+        UART["Task UART RX<br/>main/serial.c"]
+        FILAS["Filas por servo<br/>main/filas.c"]
+        SERVOS["PWM LEDC<br/>main/servo.c"]
     end
 
-    CAM -->|Frame Bruto| PRE
-    PRE -->|Frame Normalizado| YOLO
-    YOLO -->|Detecções / Bounding Boxes| API
-    API -->|Superposição de Labels| STREAM
-    API -->|Classe Detectada| SERIAL
-    SERIAL -->|String Protocolo ASCII| USB
-    USB -->|Recebe Classe| FILAS
-    FILAS -->|Sinal PWM / GPIO| SERVOS
+    subgraph HW["Atuação"]
+        SENS["Sensores E18-D80NK<br/>entrada + saída"]
+        MOT["Servomotores"]
+    end
+
+    subgraph OBS["Observabilidade"]
+        GRAF["Grafana Cloud / Loki"]
+        MET["/metrics · arquivo JSON"]
+    end
+
+    CAM -->|frame BGR| PRE
+    PRE -->|frame normalizado 320px| YOLO
+    YOLO -->|detecções + confiança| API
+    API -->|frames anotados| STREAM
+    API -->|classe da peça| USB
+    API -.->|push de logs| GRAF
+    API --> MET
+    USB --> UART
+    UART -->|enfileira classe| FILAS
+    SENS -->|presença de peça| FILAS
+    FILAS -->|sinal PWM| SERVOS
+    SERVOS --> MOT
 ```
+
+### Fluxo de um ciclo completo
+
+---
+
+## Esquemático elétrico
 
 ---
 
