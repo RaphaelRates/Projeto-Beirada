@@ -9,17 +9,17 @@
 
 // Pinos dos LEDs/Servos
 #define SERVO1_GPIO 20
-#define SERVO2_GPIO 7
+#define SERVO2_GPIO 21
 #define SERVO3_GPIO 26
 
 // Sensores de Entrada (Esteira Principal - Ativam o Servo)
 #define SENSOR1_ENTRADA_GPIO 4
-#define SENSOR2_ENTRADA_GPIO 38
+#define SENSOR2_ENTRADA_GPIO 6
 #define SENSOR3_ENTRADA_GPIO 39
 
 // Sensores de Saída (Esteiras Perpendiculares - Desativam o Servo)
 #define SENSOR1_SAIDA_GPIO   5
-#define SENSOR2_SAIDA_GPIO   16
+#define SENSOR2_SAIDA_GPIO   7
 #define SENSOR3_SAIDA_GPIO   17
 
 #define SERVO_FREQ          50

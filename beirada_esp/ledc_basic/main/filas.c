@@ -7,49 +7,67 @@
 
 static const char *TAG = "LOGICA_FILAS";
 
-#define SERVO_ACTION_TIME_MS 1000
-
 static QueueHandle_t xServoQueues[SERVO_MAX_COUNT];
 
 static void servo_task(void *pvParameters)
 {
     servo_id_t servo_id = (servo_id_t)(uintptr_t)pvParameters;
     uint8_t piece_class;
+    uint8_t my_target_class = (uint8_t)(servo_id + 1); // Servo 1 quer classe 1, Servo 2 quer classe 2, etc.
 
-    ESP_LOGI(TAG, "Task do Servo %d rodando (Modo Duplo Sensor).", servo_id + 1);
+    ESP_LOGI(TAG, "Task do Servo %d rodando (Modo Sincronizado por Passagem).", servo_id + 1);
 
     while (1) {
-        // 1. Aguarda a visão informar que há uma peça para este servo
+        // 1. Aguarda a próxima peça da fila do seu trecho da esteira
         if (xQueueReceive(xServoQueues[servo_id], &piece_class, portMAX_DELAY) == pdTRUE) {
-            // Se a classe recebida da Raspberry não for a do sensor atual, ignora.
-            if (piece_class != (uint8_t)(servo_id + 1)) {
-                ESP_LOGD(TAG, "Classe %d ignorada pelo sensor %d.", piece_class, servo_id + 1);
-                continue;
-            }
 
-            ESP_LOGI(TAG, "Sensor %d aguardando classe %d no SENSOR DE ENTRADA...", servo_id + 1, piece_class);
+            ESP_LOGI(TAG, "Servo %d: Peça classe %d a caminho. Aguardando no Sensor de ENTRADA...", 
+                     servo_id + 1, piece_class);
 
-            // 2. Aguarda o SENSOR DE ENTRADA (esteira principal) detectar a peça
+            // 2. Aguarda a peça FISICAMENTE chegar ao sensor de entrada deste servo
             while (!sensor_objeto_presente(servo_id, SENSOR_ENTRADA)) {
-                vTaskDelay(pdMS_TO_TICKS(10));
+                vTaskDelay(pdMS_TO_TICKS(100));
             }
 
-            // 3. Peça chegou! Ativa o servo para empurrar/desviar
-            ESP_LOGI(TAG, "Peça classe %d na entrada do Sensor %d! Acionando braço...", piece_class, servo_id + 1);
-            servo_abrir(servo_id);
+            // 3. A peça chegou no sensor! Verificamos se ela é DESTINADA a este servo
+            if (piece_class == my_target_class) {
+                // É MINHA PEÇA! Ativa o desvio
+                ESP_LOGI(TAG, ">> Servo %d: Peça correspondente (%d) detectada! ACIONANDO BRAÇO.", 
+                         servo_id + 1, piece_class);
 
-            // 4. Aguarda o SENSOR DE SAÍDA (esteira perpendicular) confirmar a recepção
-            ESP_LOGI(TAG, "Aguardando confirmação no Sensor de SAÍDA %d...", servo_id + 1);
-            while (!sensor_objeto_presente(servo_id, SENSOR_SAIDA)) {
-                vTaskDelay(pdMS_TO_TICKS(10));
+                // Aguarda confirmação no sensor de saída (esteira perpendicular)
+                while (!sensor_objeto_presente(servo_id, SENSOR_SAIDA)) {
+                    if (servo_id == servo2) {
+                        servo_angulo(servo_id, 50);
+                        vTaskDelay(pdMS_TO_TICKS(100));
+                        servo_angulo(servo_id, 60);
+                        vTaskDelay(pdMS_TO_TICKS(100));
+                        servo_angulo(servo_id, 50);
+                    } else {
+                        servo_angulo(servo_id, 150);
+                        vTaskDelay(pdMS_TO_TICKS(100));
+                        servo_angulo(servo_id, 140);
+                        vTaskDelay(pdMS_TO_TICKS(100));
+                        servo_angulo(servo_id, 150);
+                    }
+                }
+
+                vTaskDelay(pdMS_TO_TICKS(150));
+                servo_desativar(servo_id);
+                ESP_LOGI(TAG, ">> Servo %d: Peça transferida com sucesso.", servo_id + 1);
+
+            } else {
+                // NÃO É MINHA PEÇA! Apenas aguarda ela PASSAR do sensor de entrada e deixa seguir em frente
+                ESP_LOGI(TAG, "-- Servo %d: Peça classe %d é para outro servo. IGNORANDO e mantendo fechado.", 
+                         servo_id + 1, piece_class);
+
+                // Aguarda a peça sair da frente do sensor de entrada antes de liberar a fila para a próxima
+                while (sensor_objeto_presente(servo_id, SENSOR_ENTRADA)) {
+                    vTaskDelay(pdMS_TO_TICKS(100));
+                }
+                
+                vTaskDelay(pdMS_TO_TICKS(200)); // Pequena margem de desobstrução
             }
-
-            // Pequeno delay opcional para a peça estabilizar na nova esteira
-            vTaskDelay(pdMS_TO_TICKS(150));
-
-            // 5. Peça transferida com sucesso! Recolhe o servo
-            ESP_LOGI(TAG, "Peça classe %d recebida no sensor %d. Recolhendo servo.", piece_class, servo_id + 1);
-            servo_desativar(servo_id);
         }
     }
 }
@@ -59,7 +77,6 @@ esp_err_t logica_filas_init(void)
     char task_name[16];
 
     for (int i = 0; i < SERVO_MAX_COUNT; i++) {
-        // guardar apenas o ID/Classe simples (1 byte)
         xServoQueues[i] = xQueueCreate(10, sizeof(uint8_t));
         if (xServoQueues[i] == NULL) {
             return ESP_FAIL;
@@ -77,7 +94,7 @@ esp_err_t logica_filas_init(void)
         );
     }
 
-    ESP_LOGI(TAG, "Lógica com sensores e filas inicializada com sucesso.");
+    ESP_LOGI(TAG, "Lógica da esteira inicializada com controle de passagem.");
     return ESP_OK;
 }
 
@@ -88,15 +105,14 @@ void peca_para_fila(uint8_t piece_class)
         return;
     }
 
-    // A mesma classe recebida da Raspberry é distribuída para as 3 filas de sensores,
-    // para cada lógica verificar se o objeto correspondente chegou ao seu sensor.
-    for (int i = 0; i < SERVO_MAX_COUNT; i++) {
-        servo_id_t target_servo = (servo_id_t)i;
-
-        if (xQueueSend(xServoQueues[target_servo], &piece_class, pdMS_TO_TICKS(100)) != pdTRUE) {
-            ESP_LOGE(TAG, "Fila do Sensor %d cheia! Classe %d descartada.", target_servo + 1, piece_class);
+    // Envia a peça SOMENTE para os servos pelos quais ela precisa passar até chegar ao seu destino
+    // Ex: Peça 3 precisa passar pelo Servo 1, Servo 2 e Servo 3 (i = 0, 1, 2)
+    // Ex: Peça 1 precisa passar apenas pelo Servo 1 (i = 0)
+    for (int i = 0; i < piece_class; i++) {
+        if (xQueueSend(xServoQueues[i], &piece_class, pdMS_TO_TICKS(100)) != pdTRUE) {
+            ESP_LOGE(TAG, "Fila do Servo %d cheia! Peça %d descartada.", i + 1, piece_class);
         } else {
-            ESP_LOGI(TAG, "Classe %d distribuída para a fila do Sensor %d.", piece_class, target_servo + 1);
+            ESP_LOGI(TAG, "Peça classe %d registrada na fila do Servo %d.", piece_class, i + 1);
         }
     }
 }

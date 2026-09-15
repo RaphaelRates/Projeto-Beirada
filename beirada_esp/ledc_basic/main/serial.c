@@ -35,7 +35,7 @@ static void uart_rx_task(void *pvParameters)
                     if (buf_idx > 0) {
                         buffer[buf_idx] = '\0'; // Finaliza a string
 
-                        // Converte o texto recebido para inteiro (ex: "1", "2", "3")
+                        // Converte o texto recebido para inteiro (ex: "1", "2", "3", "4")
                         uint8_t classe_recebida = (uint8_t)atoi(buffer);
 
                         ESP_LOGI(TAG, "Comando serial recebido: '%s' -> Classe: %d", buffer, classe_recebida);
@@ -45,6 +45,7 @@ static void uart_rx_task(void *pvParameters)
 
                         // Reseta o índice do buffer para a próxima mensagem
                         buf_idx = 0;
+                        
                     }
                 } else if (buf_idx < (sizeof(buffer) - 1)) {
                     // Acumula os caracteres imprimíveis no buffer
