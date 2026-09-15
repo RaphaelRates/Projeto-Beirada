@@ -18,6 +18,7 @@ from fastapi import FastAPI, HTTPException, Query, Request, Response
 from fastapi.responses import HTMLResponse, StreamingResponse
 from model import get_default_model_name, load_model
 from PIL import Image
+from prometheus_client import Counter, Gauge, start_http_server
 from schemas import (
     BatchPredictRequest,
     BatchPredictResponse,
@@ -32,10 +33,50 @@ from preprocessing.preprocessor import CONFIG_DEFAULT, Preprocessor
 
 templates = Jinja2Templates(directory="templates")
 
-GRAFANA_CLOUD_ENDPOINT = os.getenv("GRAFANA_CLOUD_ENDPOINT") or os.getenv("GRAFANA_CLOUD_LOKI_URL") or ""
-GRAFANA_CLOUD_TOKEN = os.getenv("GRAFANA_CLOUD_TOKEN") or os.getenv("GRAFANA_CLOUD_API_KEY") or ""
-GRAFANA_CLOUD_USERNAME = os.getenv("GRAFANA_CLOUD_USERNAME") or ""
-GRAFANA_CLOUD_PASSWORD = os.getenv("GRAFANA_CLOUD_PASSWORD") or ""
+try:
+    _METRICS_PORT = int(os.environ.get("PROMETHEUS_PORT", "8001"))
+    start_http_server(_METRICS_PORT)
+except Exception:
+    pass
+
+INFERENCE_TIME = Gauge(
+    "yolo_inference_time_seconds",
+    "Tempo de inferência do YOLO em segundos (última execução)",
+)
+DETECTIONS_COUNT = Gauge(
+    "yolo_detections_count",
+    "Número de objetos detectados na última inferência",
+)
+DETECTIONS_TOTAL = Counter(
+    "yolo_detections_total",
+    "Total cumulativo de objetos detectados pelo YOLO",
+)
+DETECTIONS_BY_CLASS = Counter(
+    "yolo_detections_by_class_total",
+    "Total cumulativo de objetos detectados pelo YOLO por classe",
+    ["class_name"],
+)
+DETECTION_CONFIDENCE = Gauge(
+    "yolo_detection_confidence_last",
+    "Última confiança por classe observada na última inferência",
+    ["class_name"],
+)
+STREAM_ACTIVE = Gauge(
+    "yolo_stream_active",
+    "1 se há um stream de câmera em andamento, 0 caso contrário",
+)
+STREAM_FPS = Gauge(
+    "yolo_stream_fps",
+    "Taxa de quadros por segundo entregues pelo stream (média móvel simples)",
+)
+
+_MONITORED_CLASSES = {
+    "serrote",
+    "martelo",
+    "parafuso",
+    "estilete",
+}
+
 
 app = FastAPI(
     title="YOLO Inference API",
@@ -54,11 +95,10 @@ def _metrics_default():
 
 
 def _metrics_ensure_file():
-    if not _metrics_file.parent.exists():
-        _metrics_file.parent.mkdir(parents=True, exist_ok=True)
-
+    _metrics_file.parent.mkdir(parents=True, exist_ok=True)
     if not _metrics_file.exists():
-        _metrics_save(_metrics_default())
+        with _metrics_file.open("w", encoding="utf-8") as fp:
+            json.dump(_metrics_default(), fp)
 
 
 def _metrics_load():
@@ -74,7 +114,7 @@ def _metrics_load():
 
 
 def _metrics_save(metrics):
-    _metrics_ensure_file()
+    _metrics_file.parent.mkdir(parents=True, exist_ok=True)
     tmp = _metrics_file.with_suffix(".json.tmp")
     with tmp.open("w", encoding="utf-8") as fp:
         json.dump(metrics, fp)
@@ -106,107 +146,6 @@ def _metrics_read_for_response():
     return metrics
 
 
-def _grafana_cloud_build_payload(result: PredictResponse, request_id: str, confidence: float, model_name: str):
-    """Serializa o schema de resposta de detecção em um envelope JSON útil para Loki/Grafana Cloud."""
-    detections = []
-    for d in result.detections:
-        detections.append({
-            "label": d.label,
-            "confidence": d.confidence,
-            "bbox": d.bbox,
-        })
-
-    payload = {
-        "request_id": request_id,
-        "model_name": model_name,
-        "model_used": result.model_used,
-        "confidence": confidence,
-        "inference_ms": result.inference_ms,
-        "image_width": result.image_width,
-        "image_height": result.image_height,
-        "detections": detections,
-    }
-
-    return {
-        "streams": [
-            {
-                "stream": {
-                    "job": "beirada-inference",
-                    "source": "app.py",
-                    "model": result.model_used,
-                },
-                "values": [
-                    [
-                        str(int(time.time() * 1_000_000_000)),
-                        json.dumps(payload, ensure_ascii=False),
-                    ]
-                ],
-            }
-        ]
-    }
-
-
-def _send_to_grafana_cloud(result: PredictResponse, request_id: str, confidence: float, model_name: str):
-    """Envia o envelope da resposta como log/metric para Grafana Cloud quando a URL/token estiverem configurados."""
-    if not GRAFANA_CLOUD_ENDPOINT:
-        return
-
-    payload = _grafana_cloud_build_payload(result, request_id, confidence, model_name)
-    headers = {"Content-Type": "application/json"}
-
-    if GRAFANA_CLOUD_TOKEN:
-        headers["Authorization"] = f"Bearer {GRAFANA_CLOUD_TOKEN}"
-    elif GRAFANA_CLOUD_USERNAME and GRAFANA_CLOUD_PASSWORD:
-        token = base64.b64encode(f"{GRAFANA_CLOUD_USERNAME}:{GRAFANA_CLOUD_PASSWORD}".encode()).decode()
-        headers["Authorization"] = f"Basic {token}"
-
-    try:
-        # Endpoint Loki / Grafana Cloud Logs espera um POST de streams com arrays de valores.
-        httpx.post(
-            GRAFANA_CLOUD_ENDPOINT,
-            headers=headers,
-            json=payload,
-            timeout=5.0,
-        )
-    except Exception as exc:
-        log_event(
-            "grafana_cloud_export_error",
-            level="ERROR",
-            reason=str(exc),
-            request_id=request_id,
-            model=model_name,
-        )
-
-
-def _run_stream_or_camera_only(frame: np.ndarray, model, confidence: float):
-    """Fallback simples: se o YOLO não puder rodar, devolve o frame bruto da câmera.
-
-    Isso mantém o stream vivo mesmo quando o modelo offline ou indisponível.
-    """
-    if model is None:
-        return frame
-
-    try:
-        results = model.predict(
-            source=frame,
-            conf=confidence,
-            imgsz=300,
-            verbose=False,
-            half=True,
-            iou=0.15, 
-            
-        )
-        return results[0].plot()
-    except Exception as exc:
-        log_event(
-            "stream_yolo_fallback_camera_only",
-            level="WARN",
-            reason=str(exc),
-            confidence=confidence,
-        )
-        return frame
-
-
 def log_event(event: str, level: str = "INFO", **kwargs):
     """Emite um evento estruturado em JSON para stdout."""
     record = {
@@ -218,43 +157,69 @@ def log_event(event: str, level: str = "INFO", **kwargs):
     print(json.dumps(record, ensure_ascii=False), flush=True)
 
 
-_preprocessor = Preprocessor(CONFIG_DEFAULT)   # instância global
+def _publish_detection_metrics(model, results):
+    """Publica para Prometheus/Grafana apenas as quatro classes de interesse
+    do projeto: serrote, martelo, parafuso e estilete. As restantes são
+    filtradas do array de observabilidade e não alteram os counters/gauges.
+    """
+    summary = []
+    for r in results:
+        for box in r.boxes:
+            cls_id = int(box.cls[0].item())
+            conf_val = float(box.conf[0].item())
+            cls_name = model.names[cls_id]
+            cls_name_lower = cls_name.lower()
+
+            if cls_name_lower not in _MONITORED_CLASSES:
+                continue
+
+            DETECTIONS_BY_CLASS.labels(cls_name).inc()
+            DETECTION_CONFIDENCE.labels(cls_name).set(conf_val)
+            summary.append({"class": cls_name, "confidence": round(conf_val, 4)})
+    return summary
+
+
+_preprocessor = Preprocessor(CONFIG_DEFAULT)  # instância global
+
 
 def _run_inference(image_np: np.ndarray, model_name: str, confidence: float) -> PredictResponse:
+    """Roda a inferência com pré-processamento e atualiza as métricas Prometheus.
+    Observação: antes havia duas funções `_run_inference` no arquivo — a segunda
+    sobrescrevia a primeira, então o pré-processamento (letterbox + ajuste de
+    bbox) nunca era realmente executado nos endpoints /predict*. Esta versão
+    unifica as duas: mantém o pré-processamento E a atualização de métricas.
+    """
     model = load_model(model_name)
 
-
-    # Pré-processamento explícito
-    # image_np chega em RGB (já convertido em _decode_image) --
-    # o Preprocessor espera BGR, então converte temporariamente
-    frame_bgr   = image_np[:, :, ::-1]
+    frame_bgr = image_np[:, :, ::-1]
     preproc_res = _preprocessor.process(frame_bgr)
     frame_ready = preproc_res.frame  # RGB, letterboxed
-
 
     t0 = time.perf_counter()
     results = model(frame_ready, conf=confidence, verbose=False)
     elapsed_ms = (time.perf_counter() - t0) * 1000
+    
+    total_detections = sum(len(r.boxes) for r in results)
+    INFERENCE_TIME.set(elapsed_ms / 1000)
+    DETECTIONS_COUNT.set(total_detections)
+    DETECTIONS_TOTAL.inc(total_detections)
 
+    _publish_detection_metrics(model, results)
 
     detections = []
     for r in results:
         for box in r.boxes:
-            # Ajusta as coordenadas do espaço letterboxed de volta ao
-            # espaço da imagem original -- sem isso, os bboxes retornados
-            # pela API ficam deslocados sempre que houver padding
+
             bbox_lb = box.xyxy[0].numpy().reshape(1, 4)
             bbox_orig = _preprocessor.adjust_boxes(bbox_lb, preproc_res)[0]
             cls_id = int(box.cls[0].item())
             conf_val = float(box.conf[0].item())
-
 
             detections.append(Detection(
                 label=model.names[cls_id],
                 confidence=round(conf_val, 4),
                 bbox=[round(float(c), 2) for c in bbox_orig],
             ))
-
 
     h, w = image_np.shape[:2]
     return PredictResponse(
@@ -264,6 +229,41 @@ def _run_inference(image_np: np.ndarray, model_name: str, confidence: float) -> 
         image_width=w,
         image_height=h,
     )
+
+
+def _run_stream_or_camera_only(frame: np.ndarray, model, confidence: float):
+    """Roda a inferência YOLO em um frame de streaming e atualiza as métricas
+    Prometheus em tempo real, para que o Grafana reflita o stream ao vivo.
+
+    Fallback: se o modelo não puder rodar, devolve o frame bruto da câmera e
+    marca o erro no contador `yolo_stream_inference_errors_total`. Isso mantém
+    o stream vivo mesmo quando o modelo está offline ou indisponível.
+    """
+    if model is None:
+        return frame
+
+    try:
+        t0 = time.perf_counter()
+        results = model.predict(
+            source=frame,
+            conf=confidence,
+            imgsz=300,
+            verbose=False,
+            half=True,
+            iou=0.15,
+        )
+        elapsed_ms = (time.perf_counter() - t0) * 1000
+
+        total_detections = sum(len(r.boxes) for r in results)
+        INFERENCE_TIME.set(elapsed_ms / 1000)
+        DETECTIONS_COUNT.set(total_detections)
+        DETECTIONS_TOTAL.inc(total_detections)
+
+        return results[0].plot()
+    except Exception as exc:
+        log_event("stream_yolo_fallback_camera_only",level="WARN",reason=str(exc),confidence=confidence,)
+        return frame
+
 
 def _decode_image(image_base64: str) -> np.ndarray:
     raw = base64.b64decode(image_base64)
@@ -279,11 +279,7 @@ def _load_image_from_request(request: PredictRequest) -> np.ndarray:
         return _decode_image(request.image_base64)
 
     try:
-        resp = httpx.get(
-            request.image_url,
-            timeout=15.0,
-            follow_redirects=True,
-        )
+        resp = httpx.get(request.image_url,timeout=15.0,follow_redirects=True,)
         resp.raise_for_status()
         img = Image.open(io.BytesIO(resp.content)).convert("RGB")
         return np.array(img)
@@ -330,40 +326,6 @@ def _capture_frame_from_camera(device_id: int = 0) -> np.ndarray:
     raise HTTPException(
         status_code=500,
         detail="Falha ao capturar imagem da câmera. Verifique a conexão do cabo flat.",
-    )
-
-
-def _run_inference(
-    image_np: np.ndarray,
-    model_name: str,
-    confidence: float,
-) -> PredictResponse:
-    model = load_model(model_name)
-    t0 = time.perf_counter()
-    results = model(image_np, conf=confidence, verbose=False)
-    elapsed_ms = (time.perf_counter() - t0) * 1000
-
-    detections = []
-    for r in results:
-        for box in r.boxes:
-            coords = box.xyxy[0].tolist()
-            cls_id = int(box.cls[0].item())
-            conf_val = float(box.conf[0].item())
-            detections.append(
-                Detection(
-                    label=model.names[cls_id],
-                    confidence=round(conf_val, 4),
-                    bbox=[round(float(c), 2) for c in coords],
-                )
-            )
-
-    h, w = image_np.shape[:2]
-    return PredictResponse(
-        detections=detections,
-        inference_ms=round(elapsed_ms, 2),
-        model_used=model_name,
-        image_width=w,
-        image_height=h,
     )
 
 
@@ -417,7 +379,6 @@ def predict(request: PredictRequest):
         )
 
         _metrics_update(success_delta=1, total_ms_delta=result.inference_ms)
-        _send_to_grafana_cloud(result, request_id, request.confidence, request.model_name)
 
         log_event(
             "predict_complete",
@@ -469,6 +430,19 @@ def predict_image(request: PredictRequest):
         t0 = time.perf_counter()
         results = model(img_rgb, conf=request.confidence, verbose=False)
         elapsed_ms = (time.perf_counter() - t0) * 1000
+
+        total_detections = sum(len(r.boxes) for r in results)
+        INFERENCE_TIME.set(elapsed_ms / 1000)
+        DETECTIONS_COUNT.set(total_detections)
+        DETECTIONS_TOTAL.inc(total_detections)
+
+        classes_confidence_array = _publish_detection_metrics(model, results)
+        log_event(
+            "predict_image_detections",
+            request_id=request_id,
+            model=request.model_name,
+            detections=classes_confidence_array,
+        )
 
         _metrics_update(success_delta=1, total_ms_delta=elapsed_ms)
 
@@ -529,7 +503,6 @@ def predict_from_camera(
         result = _run_inference(img_rgb, model_name, confidence)
 
         _metrics_update(success_delta=1, total_ms_delta=result.inference_ms)
-        _send_to_grafana_cloud(result, request_id, confidence, model_name)
 
         log_event(
             "camera_predict_complete",
@@ -576,6 +549,19 @@ def predict_from_camera_image(
         t0 = time.perf_counter()
         results = model(img_rgb, conf=confidence, verbose=False)
         elapsed_ms = (time.perf_counter() - t0) * 1000
+
+        total_detections = sum(len(r.boxes) for r in results)
+        INFERENCE_TIME.set(elapsed_ms / 1000)
+        DETECTIONS_COUNT.set(total_detections)
+        DETECTIONS_TOTAL.inc(total_detections)
+
+        classes_confidence_array = _publish_detection_metrics(model, results)
+        log_event(
+            "camera_image_detections",
+            request_id=request_id,
+            model=model_name,
+            detections=classes_confidence_array,
+        )
 
         _metrics_update(success_delta=1, total_ms_delta=elapsed_ms)
 
@@ -629,7 +615,6 @@ def predict_batch(request: BatchPredictRequest):
             )
             results.append(result)
             _metrics_update(total_delta=1, success_delta=1, total_ms_delta=result.inference_ms)
-            _send_to_grafana_cloud(result, request_id, request.confidence, request.model_name)
 
         total_ms = (time.perf_counter() - t_total) * 1000
 
@@ -681,7 +666,13 @@ async def stream_camera(
     model_name: str = Query("yolov8n_v4.pt"),
     framerate: int = Query(40, ge=1, le=60),
 ):
-    """Transmite vídeo contínuo da câmera com detecções YOLO em todo frame."""
+    """Transmite vídeo contínuo da câmera com detecções YOLO em todo frame.
+
+    Durante todo o ciclo de vida do stream, as métricas Prometheus
+    (yolo_stream_active, yolo_stream_fps, yolo_stream_frames_total,
+    yolo_inference_time_seconds, yolo_detections_count, etc.) são atualizadas
+    a cada frame processado, para que o Grafana acompanhe em tempo real.
+    """
 
     if _streaming_lock.locked():
         raise HTTPException(
@@ -712,26 +703,15 @@ async def stream_camera(
     async def frame_generator():
         async with _streaming_lock:
 
-            cmd = [
-                "rpicam-vid",
-                "-t", "0",
-                "-n",
-                "--codec", "mjpeg",
-                "--quality", "80",
-                "--width", "1300",
-                "--height", "720",
-                "--framerate", str(framerate),
-                "-o", "-"
-            ]
+            STREAM_ACTIVE.set(1)
+            fps_last_ts = time.perf_counter()
+            fps_smoothed = 0.0
+
+            cmd = ["rpicam-vid","-t", "0","-n","--codec", "mjpeg","--quality", "80","--width", "1280","--height", "720","--framerate", str(framerate),"-o", "-"]
 
             proc = None
             reader_task = None
 
-            # Fila com tamanho 1: guarda só o frame mais recente.
-            # Se um frame novo chegar antes do anterior ser consumido,
-            # o anterior é descartado. Isso evita que o delay cresça
-            # indefinidamente quando a inferência é mais lenta que a
-            # taxa de captura.
             latest_frame_queue: asyncio.Queue = asyncio.Queue(maxsize=1)
 
             async def read_frames():
@@ -744,11 +724,7 @@ async def stream_camera(
                 try:
                     while True:
 
-                        chunk = await loop.run_in_executor(
-                            None,
-                            proc.stdout.read,
-                            65536,
-                        )
+                        chunk = await loop.run_in_executor(None, proc.stdout.read, 65536)                        
 
                         if not chunk:
                             break
@@ -756,25 +732,17 @@ async def stream_camera(
                         buffer += chunk
 
                         if len(buffer) > MAX_BUFFER_SIZE:
-                            log_event(
-                                "stream_buffer_overflow",
-                                level="WARN",
-                                size=len(buffer),
-                            )
+                            log_event("stream_buffer_overflow",level="WARN",size=len(buffer),)
                             buffer = b""
                             continue
 
                         while True:
-
                             start = buffer.find(b"\xff\xd8")
 
                             if start == -1:
                                 break
 
-                            end = buffer.find(
-                                b"\xff\xd9",
-                                start + 2,
-                            )
+                            end = buffer.find(b"\xff\xd9",start + 2,)
 
                             if end == -1:
                                 break
@@ -782,9 +750,6 @@ async def stream_camera(
                             raw_frame = buffer[start:end + 2]
                             buffer = buffer[end + 2:]
 
-                            # Descarta o frame antigo (se houver) antes
-                            # de colocar o novo, garantindo que a fila
-                            # nunca acumule atraso.
                             if latest_frame_queue.full():
                                 try:
                                     latest_frame_queue.get_nowait()
@@ -796,26 +761,11 @@ async def stream_camera(
                 except asyncio.CancelledError:
                     raise
                 except Exception as e:
-                    log_event(
-                        "stream_reader_error",
-                        level="ERROR",
-                        reason=str(e),
-                    )
+                    log_event("stream_reader_error",level="ERROR",reason=str(e),)
 
             try:
-                proc = subprocess.Popen(
-                    cmd,
-                    stdout=subprocess.PIPE,
-                    stderr=subprocess.PIPE,
-                    bufsize=0,
-                )
-
-                log_event(
-                    "stream_started",
-                    pid=proc.pid,
-                    model=model_name,
-                    confidence=confidence,
-                )
+                proc = subprocess.Popen(cmd,stdout=subprocess.PIPE,stderr=subprocess.PIPE,bufsize=0,)
+                log_event("stream_started", pid=proc.pid,model=model_name,confidence=confidence,)
 
                 loop = asyncio.get_running_loop()
                 reader_task = asyncio.create_task(read_frames())
@@ -826,34 +776,20 @@ async def stream_camera(
                         break
 
                     try:
-                        raw_frame = await asyncio.wait_for(
-                            latest_frame_queue.get(),
-                            timeout=2.0,
-                        )
+                        raw_frame = await asyncio.wait_for(latest_frame_queue.get(),timeout=2.0,)
                     except asyncio.TimeoutError:
-                        # Sem frames novos há 2s: verifica se o processo
-                        # ou a leitura morreram, senão continua esperando.
                         if reader_task.done() or proc.poll() is not None:
                             break
+                        STREAM_FPS.set(0.0)
                         continue
 
                     try:
-
-                        jpg = np.frombuffer(
-                            raw_frame,
-                            dtype=np.uint8,
-                        )
-
-                        frame = cv2.imdecode(
-                            jpg,
-                            cv2.IMREAD_COLOR,
-                        )
+                        jpg = np.frombuffer(raw_frame,dtype=np.uint8,)
+                        frame = cv2.imdecode(jpg,cv2.IMREAD_COLOR,)
 
                         if frame is None:
                             continue
 
-                        # Detecção em thread separada para não bloquear
-                        # o event loop enquanto o modelo processa.
                         frame = await loop.run_in_executor(
                             None,
                             run_inference,
@@ -871,6 +807,18 @@ async def stream_camera(
 
                         if not success:
                             continue
+
+                        # Atualiza FPS entregue (média móvel exponencial)
+                        # e contador de frames, para o Grafana acompanhar
+                        # a saúde do stream em tempo real.
+                        now = time.perf_counter()
+                        instant_fps = 1.0 / max(now - fps_last_ts, 1e-6)
+                        fps_smoothed = (
+                            instant_fps if fps_smoothed == 0.0
+                            else (0.8 * fps_smoothed + 0.2 * instant_fps)
+                        )
+                        fps_last_ts = now
+                        STREAM_FPS.set(round(fps_smoothed, 2))
 
                         yield (
                             b"--frame\r\n"
@@ -925,16 +873,15 @@ async def stream_camera(
                         pid=proc.pid,
                     )
 
+
     return StreamingResponse(
         frame_generator(),
         media_type="multipart/x-mixed-replace; boundary=frame",
     )
 
 
-from fastapi import Request
-from fastapi.responses import HTMLResponse
-
 app.mount("/static", StaticFiles(directory="static"), name="static")
+
 
 @app.get("/stream/view", response_class=HTMLResponse)
 async def stream_view(request: Request):

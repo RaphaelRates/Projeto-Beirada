@@ -9,6 +9,7 @@ services:
     container_name: yolo-api
     ports:
       - "8000:8000"
+      - "8001:8001"
     privileged: true
     devices: 
      - /dev/ttyACM0:/dev/ttyACM0  
@@ -21,6 +22,7 @@ services:
       - MODEL_NAME=yolov8n_v4.pt
       - MODEL_PATH=/app/models/yolov8n_v4.pt
       - CONFIDENCE=0.70
+      - PROMETHEUS_PORT=8001
       - ESP32_SERIAL_PORT=/dev/ttyACM0
       - ESP32_SERIAL_BAUD=115200
       - ESP32_MIN_INTERVAL_S=0.1
