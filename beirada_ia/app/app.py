@@ -2,6 +2,7 @@ import asyncio
 import base64
 import io
 import json
+import os
 import subprocess
 import time
 import uuid
@@ -26,6 +27,8 @@ from schemas import (
 )
 
 from preprocessing.preprocessor import CONFIG_DEFAULT, Preprocessor
+from grafana_exporter import GrafanaCloudExporter
+from grafana_tracking import TrackAwareCounter
 
 templates = Jinja2Templates(directory="templates")
 
@@ -37,6 +40,14 @@ app = FastAPI(
 
 _metrics = {"total": 0, "success": 0, "total_ms": 0.0}
 _streaming_lock = asyncio.Lock()
+
+_grafana_exporter = GrafanaCloudExporter(
+    endpoint=os.getenv("GRAFANA_REMOTE_WRITE_ENDPOINT"),
+    username=os.getenv("GRAFANA_USERNAME"),
+    password=os.getenv("GRAFANA_PASSWORD"),
+    enabled=bool(os.getenv("GRAFANA_REMOTE_WRITE_ENDPOINT")),
+)
+_tracking_counter = TrackAwareCounter(window_seconds=1.0)
 
 
 def _run_stream_or_camera_only(frame: np.ndarray, model, confidence: float):
@@ -109,13 +120,25 @@ def _run_inference(image_np: np.ndarray, model_name: str, confidence: float) -> 
             cls_id = int(box.cls[0].item())
             conf_val = float(box.conf[0].item())
 
-
             detections.append(Detection(
                 label=model.names[cls_id],
                 confidence=round(conf_val, 4),
                 bbox=[round(float(c), 2) for c in bbox_orig],
             ))
 
+    # Exporta contagem de objetos detectados por segundo para Grafana Cloud,
+    # usando o contador track-aware para evitar contar boxes repetidos entre
+    # frames como se fosse um objeto diferente.
+    objects_per_second = _tracking_counter.update(
+        [d.dict() for d in detections],
+        frame_time=time.time(),
+    )
+    _grafana_exporter.push_count(
+        objects_per_second,
+        model_name=model_name,
+        source="api",
+        tracking="track-aware",
+    )
 
     h, w = image_np.shape[:2]
     return PredictResponse(
@@ -217,6 +240,17 @@ def _run_inference(
                     bbox=[round(float(c), 2) for c in coords],
                 )
             )
+
+    objects_per_second = _tracking_counter.update(
+        [det.model_dump() if hasattr(det, 'model_dump') else det.__dict__ for det in detections],
+        frame_time=time.time(),
+    )
+    _grafana_exporter.push_count(
+        objects_per_second,
+        model_name=model_name,
+        source="camera",
+        tracking="track-aware",
+    )
 
     h, w = image_np.shape[:2]
     return PredictResponse(

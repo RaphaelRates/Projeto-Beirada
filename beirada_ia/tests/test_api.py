@@ -18,6 +18,8 @@ import pytest
 from fastapi.testclient import TestClient
 from PIL import Image
 
+from grafana_exporter import GrafanaCloudExporter
+
 sys.path.insert(0, str(Path(__file__).parent.parent))
 sys.path.insert(0, str(Path(__file__).parent.parent / "app"))
 
@@ -142,6 +144,16 @@ def test_run_stream_or_camera_only_returns_frame_when_model_is_missing():
     frame = np.zeros((8, 8, 3), dtype=np.uint8)
     result = _run_stream_or_camera_only(frame, None, 0.60)
     assert result is frame
+
+
+def test_grafana_exporter_builds_prometheus_remote_write_payload():
+    exporter = GrafanaCloudExporter(endpoint="https://prometheus.example/api/prom/push",
+                                     username="u",
+                                     password="p",
+                                     enabled=True)
+    payload = exporter.build_payload(3.0, model_name="yolov8n_v3.pt", source="api", tracking="track-aware")
+    assert payload["timeseries"][0]["labels"]["__name__"] == "beirada_objects_detected_per_second"
+    assert payload["timeseries"][0]["samples"][0]["value"] == 3.0
 
 
 class TestPredictEndpoint:

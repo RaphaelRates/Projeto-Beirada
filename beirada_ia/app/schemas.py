@@ -22,6 +22,7 @@ class Detection(BaseModel):
     label: str
     confidence: float
     bbox: list[float]   # [x1, y1, x2, y2] em pixels
+    track_id: str | None = None
 
 class PredictResponse(BaseModel):
     detections: list[Detection]
