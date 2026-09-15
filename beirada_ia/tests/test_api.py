@@ -1,11 +1,13 @@
 """
 tests/test_api.py
 Cobertura: smoke test, unit tests e integration test da YOLO Inference API.
-Pré-requisito: models/yolov8n_v3.pt presente no sistema de arquivos.
+Pré-requisito: models/yolov8n_v4.pt presente no sistema de arquivos.
 """
 import base64
+import importlib
 import inspect
 import io
+import json
 import os
 import threading
 
@@ -24,10 +26,11 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 sys.path.insert(0, str(Path(__file__).parent.parent / "app"))
 
 
-os.environ.setdefault("MODEL_NAME", "yolov8n_v3.pt")
+os.environ.setdefault("MODEL_NAME", "yolov8n_v4.pt")
 
 
 from app import _decode_image, _run_stream_or_camera_only, app, stream_camera
+from model import get_default_model_name
 from preprocessing.preprocessor import CONFIG_DEFAULT
 from schemas import PredictRequest
 
@@ -38,6 +41,57 @@ except Exception:
     RealtimeDetector = None
 
 client = TestClient(app)
+
+
+def test_metrics_ensure_file_creates_default_file_without_recursing(tmp_path, monkeypatch):
+    """Regression test for the metrics helper: the file should be initialized
+    once from the default payload instead of mutually calling save/ensure.
+    """
+    app_module = importlib.import_module("app")
+    metrics_file = tmp_path / "beirada_metrics.json"
+    metrics_lock = tmp_path / "beirada_metrics.lock"
+    monkeypatch.setattr(app_module, "_metrics_file", metrics_file)
+    monkeypatch.setattr(app_module, "_metrics_lock_file", metrics_lock)
+
+    app_module._metrics_ensure_file()
+
+    assert metrics_file.exists()
+    assert json.loads(metrics_file.read_text(encoding="utf-8")) == {
+        "total": 0,
+        "success": 0,
+        "total_ms": 0.0,
+    }
+
+
+def test_publish_detection_metrics_filters_to_supported_project_classes():
+    app_module = importlib.import_module("app")
+
+    class FakeModel:
+        names = ["serrote", "martelo", "parafuso", "estilete", "caminhao"]
+
+    class FakeBox:
+        def __init__(self, cls_id, confidence):
+            self.cls = [type("C", (), {"__getitem__": lambda self, _: cls_id})()]
+            self.conf = [type("C", (), {"__getitem__": lambda self, _: confidence})()]
+
+    class FakeResult:
+        def __init__(self, boxes):
+            self.boxes = boxes
+
+    fake_results = [
+        FakeResult([
+            FakeBox(0, 0.90),
+            FakeBox(1, 0.81),
+            FakeBox(4, 0.75),
+        ])
+    ]
+
+    summary = app_module._publish_detection_metrics(FakeModel(), fake_results)
+
+    assert summary == [
+        {"class": "serrote", "confidence": 0.9},
+        {"class": "martelo", "confidence": 0.81},
+    ]
 
 
 def test_default_api_confidence_and_preprocess_infer_size():
@@ -96,6 +150,15 @@ class TestSmoke:
         """Endpoint /metrics deve estar acessível."""
         resp = client.get("/metrics")
         assert resp.status_code == 200
+
+
+    def test_metrics_endpoint_returns_active_model_name(self):
+        """Endpoint /metrics deve refletir o modelo ativo em tempo real."""
+        resp = client.get("/metrics")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert "model_name" in data
+        assert data["model_name"] == get_default_model_name()
 
 
 

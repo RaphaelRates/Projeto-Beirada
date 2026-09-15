@@ -5,52 +5,45 @@
 #include "freertos/queue.h"
 #include "esp_log.h"
 
-static const char *TAG = "Lógica de filas:";
+static const char *TAG = "LOGICA_FILAS";
 
-// Distâncias da câmera até cada servo em metros
-const float distancia1 = 1.5; // Levará 1.5 segundos (1500 ms)
-const float distancia2 = 3.0; // Levará 3.0 segundos (3000 ms)
-const float distancia3 = 4.5; // Levará 4.5 segundos (4500 ms)
-
-const float velocidade = 1.0; // Velocidade da esteira em metros por segundo
-
-static const uint32_t SERVO_TRAVEL_TIME_MS[SERVO_MAX_COUNT] = {
-    (uint32_t)((distancia1 / velocidade) * 1000), // Servo 1: 1500ms
-    (uint32_t)((distancia2 / velocidade) * 1000), // Servo 2: 3000ms
-    (uint32_t)((distancia3 / velocidade) * 1000)  // Servo 3: 4500ms
-};
-
-typedef struct {
-    uint8_t piece_class;
-    TickType_t detection_time;
-} conveyor_item_t;
-
-#define SERVO_ACTION_TIME_MS 500
+#define SERVO_ACTION_TIME_MS 1000
 
 static QueueHandle_t xServoQueues[SERVO_MAX_COUNT];
 
 static void servo_task(void *pvParameters)
 {
     servo_id_t servo_id = (servo_id_t)(uintptr_t)pvParameters;
-    conveyor_item_t item;
+    uint8_t piece_class;
 
-    ESP_LOGI(TAG, "Task do Servo %d rodando.", servo_id + 1);
+    ESP_LOGI(TAG, "Task do Servo %d rodando (Modo Duplo Sensor).", servo_id + 1);
 
     while (1) {
-        if (xQueueReceive(xServoQueues[servo_id], &item, portMAX_DELAY) == pdTRUE) {
+        // 1. Aguarda a visão informar que há uma peça para este servo
+        if (xQueueReceive(xServoQueues[servo_id], &piece_class, portMAX_DELAY) == pdTRUE) {
             
-            TickType_t now = xTaskGetTickCount();
-            TickType_t elapsed_ticks = now - item.detection_time;
-            TickType_t target_delay_ticks = pdMS_TO_TICKS(SERVO_TRAVEL_TIME_MS[servo_id]);
+            ESP_LOGI(TAG, "Servo %d aguardando peça no Sensor de ENTRADA...", servo_id + 1);
 
-            if (target_delay_ticks > elapsed_ticks) {
-                vTaskDelay(target_delay_ticks - elapsed_ticks);
+            // 2. Aguarda o SENSOR DE ENTRADA (esteira principal) detectar a peça
+            while (!sensor_objeto_presente(servo_id, SENSOR_ENTRADA)) {
+                vTaskDelay(pdMS_TO_TICKS(10));
             }
 
-            ESP_LOGI(TAG, "Acionando Servo %d para a classe %d", servo_id + 1, item.piece_class);
-
+            // 3. Peça chegou! Ativa o servo para empurrar/desviar
+            ESP_LOGI(TAG, "Peça na entrada do Servo %d! Acionando braço...", servo_id + 1);
             servo_abrir(servo_id);
-            vTaskDelay(pdMS_TO_TICKS(SERVO_ACTION_TIME_MS));
+
+            // 4. Aguarda o SENSOR DE SAÍDA (esteira perpendicular) confirmar a recepção
+            ESP_LOGI(TAG, "Aguardando confirmação no Sensor de SAÍDA %d...", servo_id + 1);
+            while (!sensor_objeto_presente(servo_id, SENSOR_SAIDA)) {
+                vTaskDelay(pdMS_TO_TICKS(10));
+            }
+
+            // Pequeno delay opcional para a peça estabilizar na nova esteira
+            vTaskDelay(pdMS_TO_TICKS(150));
+
+            // 5. Peça transferida com sucesso! Recolhe o servo
+            ESP_LOGI(TAG, "Peça recebida na esteira perpendicular %d! Recolhendo servo.", servo_id + 1);
             servo_desativar(servo_id);
         }
     }
@@ -61,9 +54,9 @@ esp_err_t logica_filas_init(void)
     char task_name[16];
 
     for (int i = 0; i < SERVO_MAX_COUNT; i++) {
-        xServoQueues[i] = xQueueCreate(10, sizeof(conveyor_item_t));
+        // guardar apenas o ID/Classe simples (1 byte)
+        xServoQueues[i] = xQueueCreate(10, sizeof(uint8_t));
         if (xServoQueues[i] == NULL) {
-            ESP_LOGE(TAG, "Falha ao criar fila para o servo %d", i + 1);
             return ESP_FAIL;
         }
 
@@ -79,7 +72,7 @@ esp_err_t logica_filas_init(void)
         );
     }
 
-    ESP_LOGI(TAG, "Lógica da esteira e filas inicializadas.");
+    ESP_LOGI(TAG, "Lógica com sensores e filas inicializada com sucesso.");
     return ESP_OK;
 }
 
@@ -92,14 +85,10 @@ void peca_para_fila(uint8_t piece_class)
 
     servo_id_t target_servo = (servo_id_t)(piece_class - 1);
 
-    conveyor_item_t item = {
-        .piece_class = piece_class,
-        .detection_time = xTaskGetTickCount()
-    };
-
-    if (xQueueSend(xServoQueues[target_servo], &item, pdMS_TO_TICKS(100)) != pdTRUE) {
+    // Insere diretamente na fila correspondente
+    if (xQueueSend(xServoQueues[target_servo], &piece_class, pdMS_TO_TICKS(100)) != pdTRUE) {
         ESP_LOGE(TAG, "Fila do Servo %d cheia! Peça descartada.", target_servo + 1);
     } else {
-        ESP_LOGI(TAG, "Peça classe %d enfileirada no Servo %d", piece_class, target_servo + 1);
+        ESP_LOGI(TAG, "Peça classe %d enfileirada para aguardar no Sensor %d", piece_class, target_servo + 1);
     }
 }

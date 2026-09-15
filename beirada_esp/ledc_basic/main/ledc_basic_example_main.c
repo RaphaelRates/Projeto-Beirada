@@ -5,6 +5,8 @@
 #include "esp_log.h"
 #include "servo.h"
 #include "filas.h"
+#include "serial.h"
+#include "driver/uart.h"
 
 static const char *TAG = "MAIN";
 
@@ -18,14 +20,17 @@ void app_main(void)
         return;
     }
 
-    // Coloca todos os servos em repouso
-    for (int i = 0; i < SERVO_MAX_COUNT; i++) {
-        servo_desativar((servo_id_t)i);
-    }
+
 
     // 2. Inicializa Filas e Tasks
     if (logica_filas_init() != ESP_OK) {
         ESP_LOGE(TAG, "Erro crítico ao inicializar lógica da esteira.");
+        return;
+    }
+
+    // 3. Inicializa a Comunicação Serial com o Raspberry Pi 5
+    if (serial_init() != ESP_OK) {
+        ESP_LOGE(TAG, "Erro crítico ao inicializar comunicação UART.");
         return;
     }
 
@@ -47,7 +52,7 @@ void app_main(void)
         ciclo++;
         ESP_LOGI(TAG, "=== Ciclo %lu ===", (unsigned long)ciclo);
 
-        // Cenário A: ordem "fora de ordem" (3 chega antes de 1)
+        /* Cenário A: ordem "fora de ordem" (3 chega antes de 1)
         // Testa se o servo 1 dispara ANTES do servo 3
         ESP_LOGI(TAG, "Cenario A: pecas 3 -> 1 -> 2");
         peca_para_fila(3);
@@ -55,19 +60,18 @@ void app_main(void)
         peca_para_fila(1);
         vTaskDelay(pdMS_TO_TICKS(500));
         peca_para_fila(2);
+        */
 
-        // Espera o cenário A terminar de ser processado
-        vTaskDelay(pdMS_TO_TICKS(6000));
-
-        // Cenário B: sequência normal crescente
+        /* Cenário B: sequência normal crescente
         ESP_LOGI(TAG, "Cenario B: pecas 1 -> 2 -> 3");
         for (int i = 1; i <= SERVO_MAX_COUNT; i++) {
             peca_para_fila(i);
             vTaskDelay(pdMS_TO_TICKS(800));
         }
         vTaskDelay(pdMS_TO_TICKS(6000));
+        */
 
-        // Cenário C: rajada de peças aleatórias
+        /* Cenário C: rajada de peças aleatórias
         ESP_LOGI(TAG, "Cenario C: rajada aleatoria");
         for (int i = 0; i < 10; i++) {
             int peca = (rand() % SERVO_MAX_COUNT) + 1;
@@ -76,8 +80,9 @@ void app_main(void)
             vTaskDelay(pdMS_TO_TICKS(700));
         }
         vTaskDelay(pdMS_TO_TICKS(8000));
+        */
 
-        // Cenário D: mesma peça várias vezes seguidas (stress da fila)
+        /* Cenário D: mesma peça várias vezes seguidas (stress da fila)
         ESP_LOGI(TAG, "Cenario D: mesma peca repetida");
         int alvo = (rand() % SERVO_MAX_COUNT) + 1;
         for (int i = 0; i < 4; i++) {
@@ -86,9 +91,11 @@ void app_main(void)
             vTaskDelay(pdMS_TO_TICKS(1000));
         }
         vTaskDelay(pdMS_TO_TICKS(8000));
+        */
 
         // Pausa entre ciclos completos
         ESP_LOGI(TAG, "Fim do ciclo %lu, aguardando...", (unsigned long)ciclo);
         vTaskDelay(pdMS_TO_TICKS(3000));
+        peca_para_fila(1);
     }
 }

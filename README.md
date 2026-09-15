@@ -1,4 +1,4 @@
-# 🛠️ Projeto V.I.T.A. - Visão Inteligente de Triagem Automática
+# Projeto V.I.T.A. - Visão Inteligente de Triagem Automática
 
 > **Equipe Computação na Beirada:**
 > - Dorian Dayvid Gomes Feitosa
@@ -8,7 +8,7 @@
 
 ---
 
-## 📌 Sumário
+## Sumário
 1. [Visão Geral](#visão-geral)
 2. [Diagrama de Arquitetura](#diagrama-de-arquitetura)
 3. [Componentes da Solução](#componentes-da-solução)
@@ -18,7 +18,7 @@
 
 ---
 
-## 📖 Visão Geral
+## Visão Geral
 
 O **Projeto V.I.T.A.** é uma solução embarcada para identificação, monitoramento e triagem automática de componentes em uma linha de produção.
 
@@ -26,7 +26,7 @@ A arquitetura utiliza uma câmera conectada a uma **Raspberry Pi 5** para captur
 
 ---
 
-## 🏗️ Diagrama de Arquitetura
+## Diagrama de Arquitetura
 
 O diagrama abaixo apresenta o fluxo integrado entre os componentes de **Visão Computacional (Edge AI)** e **IoT/Embarcados**:
 
@@ -68,10 +68,10 @@ flowchart LR
 ### Hardware
 | Componente | Função na arquitetura |
 |---|---|
-| Câmera | Captura das imagens das peças na esteira (entrada do pipeline de visão) |
-| Raspberry Pi 5 | Executa a API de inferência (yolo-epi) e o servidor de streaming |
-| ESP32-S3 | Recebe a classe detectada via serial e controla os servomotores |
-| Servomotores | Atuação física, desviando cada peça para o caminho correspondente |
+| Câmera | Sensor óptico de entrada para captura de quadros da esteira. |
+| Raspberry Pi 5 | Unidade central de processamento em borda (Edge AI), hospedagem da API e servidor de streaming.|
+| ESP32-S3 | Microcontrolador de tempo real executando firmware determinístico em C (ESP-IDF/FreeRTOS). |
+| Servomotores | Atuadores mecânicos responsáveis pelo desvio físico dos componentes. |
 
 ### Software
 | Camada | Tecnologia | Versão | Função |
@@ -123,64 +123,69 @@ Pillow==10.3.0
 ## Estrutura das Pastas
 
 ```
+
 Projeto-Beirada/
+├── .gitignore
 ├── README.md
-├── docker-compose.yml
 ├── LICENSE
+├── docker-compose.yml
+├── .dvc/
+│   └── config
 ├── .github/
 │   └── workflows/
-│       └── beirada_deploy.yml       
-│
-├── beirada_ia/                       
-│   ├── Dockerfile.api                
-│   ├── Dockerfile.stream             
-│   ├── Dockerfile.client             
-│   ├── ruff.toml                     
-│   │
-│   ├── app/
-│   │   ├── app.py                    
-│   │   ├── model.py                  
-│   │   ├── schemas.py                
-│   │   ├── core/                     
-│   │   ├── services/
-│   │   │   ├── capture_image_service.py  
-│   │   │   ├── inference_service.py      
-│   │   │   ├── log_service.py            
-│   │   │   └── serial_service.py         
-│   │   ├── preprocessing/
-│   │   │   ├── preprocessor.py      
-│   │   │   ├── utils/                
-│   │   │   └── experiments/          
-│   │   ├── static/                  
-│   │   └── templates/                
-│   │
-│   ├── client/
-│   │   └── client.py                 
-│   │
-│   ├── models/
-│   │   └── yolov8n.pt.dvc           
-│   │
-│   ├── scripts/
-│   │   ├── deploy.sh                 
-│   │   ├── inspect_dataset.py        
-│   │   └── validate_model.py         
-│   │
-│   ├── stream/
-│   │   ├── mjpeg_server.py           
-│   │   ├── v1_naive.py / v2_threaded.py / v3_optimized.py  
-│   │   └── raw_server.py, captire_frames.py
-│   │
-│   └── tests/
-│       ├── test_api.py               
-│       └── test_preprocessor.py      
-│
-└── beirada_esp/                      
-    └── ledc_basic/
-        ├── README.md                 
-        └── main/
-            ├── ledc_basic_example_main.c  
-            ├── servo.c / servo.h          
-            └── filas.c / filas.h          
+│       └── beirada_deploy.yml
+├── beirada_esp/
+│   └── ledc_basic/
+│       ├── CMakeLists.txt
+│       ├── README.md
+│       └── main/
+│           ├── CMakeLists.txt
+│           ├── ledc_basic_example_main.c
+│           ├── filas.c / filas.h
+│           └── servo.c / servo.h
+└── beirada_ia/
+    ├── Dockerfile.api
+    ├── Dockerfile.client
+    ├── ruff.toml
+    ├── app/
+    │   ├── app.py
+    │   ├── model.py
+    │   ├── schemas.py
+    │   ├── requirements.txt
+    │   ├── core/
+    │   ├── preprocessing/
+    │   │   ├── preprocessor.py
+    │   │   ├── experiments/
+    │   │   └── utils/
+    │   ├── services/
+    │   │   ├── capture_image_service.py
+    │   │   ├── inference_service.py
+    │   │   ├── log_service.py
+    │   │   └── serial_service.py
+    │   ├── static/
+    │   └── templates/
+    ├── client/
+    │   ├── client.py
+    │   └── requirements.txt
+    ├── dataset/
+    │   └── beirada.v1-v1/
+    │       └── train.py
+    ├── models/
+    │   └── yolov8n.pt.dvc
+    ├── scripts/
+    │   ├── deploy.sh
+    │   ├── inspect_dataset.py
+    │   └── validate_model.py
+    ├── stream/
+    │   ├── mjpeg_server.py
+    │   ├── captire_frames.py
+    │   ├── raw_server.py
+    │   ├── v1_naive.py
+    │   ├── v2_threaded.py
+    │   └── v3_optimized.py
+    └── tests/
+        ├── test_api.py
+        └── test_preprocessor.py          
 ```
 
 ---

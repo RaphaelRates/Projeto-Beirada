@@ -15,7 +15,7 @@ class PredictRequest(BaseModel):
         description="Limiar mínimo de confiança (0–1)")
     iou: float = Field(0.30, ge=0.0, le=1.0,
         description="Limiar de sobreposição entre boxes na deteção YOLO")
-    model_name: str = Field("yolov8n_v3.pt",
+    model_name: str = Field("yolov8n_v4.pt",
         description="Nome do arquivo de pesos dentro de /app/models/")
 
 class Detection(BaseModel):
@@ -35,7 +35,7 @@ class BatchPredictRequest(BaseModel):
     images_base64: list[str]
     confidence: float = 0.65
     iou: float = 0.30
-    model_name: str = "yolov8n_v3.pt"
+    model_name: str = "yolov8n_v4.pt"
 
 class BatchPredictResponse(BaseModel):
     results: list[PredictResponse]
@@ -52,6 +52,7 @@ class MetricsResponse(BaseModel):
     total_requests: int
     successful_requests: int
     avg_inference_ms: float
+    model_name: str
 
 class UserCreate(BaseModel):
     name: str

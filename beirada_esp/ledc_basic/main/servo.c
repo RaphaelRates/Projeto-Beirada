@@ -1,7 +1,8 @@
 #include "servo.h"
 #include "esp_log.h"
+#include "driver/gpio.h"
 
-/* static const char *TAG = "SERVO_CONTROL";
+static const char *TAG = "SERVO_CONTROL";
 
 // Estrutura para associar o ID do servo ao pino e ao canal do LEDC
 typedef struct {
@@ -9,10 +10,23 @@ typedef struct {
     ledc_channel_t channel;
 } servo_config_t;
 
+// Instanciação do array servos (Mapeia ID -> Pino GPIO e Canal LEDC)
 static const servo_config_t servos[SERVO_MAX_COUNT] = {
     [servo1] = { .gpio = SERVO1_GPIO, .channel = LEDC_CHANNEL_0 },
     [servo2] = { .gpio = SERVO2_GPIO, .channel = LEDC_CHANNEL_1 },
     [servo3] = { .gpio = SERVO3_GPIO, .channel = LEDC_CHANNEL_2 },
+};
+
+static const gpio_num_t sensores_entrada[SERVO_MAX_COUNT] = {
+    [servo1] = SENSOR1_ENTRADA_GPIO,
+    [servo2] = SENSOR2_ENTRADA_GPIO,
+    [servo3] = SENSOR3_ENTRADA_GPIO,
+};
+
+static const gpio_num_t sensores_saida[SERVO_MAX_COUNT] = {
+    [servo1] = SENSOR1_SAIDA_GPIO,
+    [servo2] = SENSOR2_SAIDA_GPIO,
+    [servo3] = SENSOR3_SAIDA_GPIO,
 };
 
 esp_err_t servo_init(void)
@@ -25,14 +39,9 @@ esp_err_t servo_init(void)
         .freq_hz          = SERVO_FREQ,
         .clk_cfg          = LEDC_AUTO_CLK
     };
+    ledc_timer_config(&timer_config);
 
-    esp_err_t err = ledc_timer_config(&timer_config);
-    if (err != ESP_OK) {
-        ESP_LOGE(TAG, "Falha ao configurar timer LEDC: %s", esp_err_to_name(err));
-        return err;
-    }
-
-    // 2. Configuração individual de cada canal associado ao servo
+    // Configuração dos Canais LEDC usando o array servos
     for (int i = 0; i < SERVO_MAX_COUNT; i++) {
         ledc_channel_config_t channel_config = {
             .gpio_num   = servos[i].gpio,
@@ -42,17 +51,36 @@ esp_err_t servo_init(void)
             .duty       = 0,
             .hpoint     = 0
         };
-
-        err = ledc_channel_config(&channel_config);
-        if (err != ESP_OK) {
-            ESP_LOGE(TAG, "Falha ao configurar canal %d no pino %d: %s", 
-                     servos[i].channel, servos[i].gpio, esp_err_to_name(err));
-            return err;
-        }
+        ledc_channel_config(&channel_config);
     }
 
-    ESP_LOGI(TAG, "Módulo de Servomotores inicializado com sucesso!");
+    // 2. Configuração dos 6 Sensores (3 Entradas + 3 Saídas)
+    uint64_t sensor_mask = (1ULL << SENSOR1_ENTRADA_GPIO) | (1ULL << SENSOR2_ENTRADA_GPIO) | (1ULL << SENSOR3_ENTRADA_GPIO) |
+                           (1ULL << SENSOR1_SAIDA_GPIO)   | (1ULL << SENSOR2_SAIDA_GPIO)   | (1ULL << SENSOR3_SAIDA_GPIO);
+
+    gpio_config_t io_conf_in = {
+        .pin_bit_mask = sensor_mask,
+        .mode = GPIO_MODE_INPUT,
+        .pull_up_en = GPIO_PULLUP_ENABLE,
+        .pull_down_en = GPIO_PULLDOWN_DISABLE,
+        .intr_type = GPIO_INTR_DISABLE
+    };
+    gpio_config(&io_conf_in);
+
+    for (int i = 0; i < SERVO_MAX_COUNT; i++) {
+        servo_desativar((servo_id_t)i);
+    }
+
+    ESP_LOGI(TAG, "Servos e 6 Sensores E18 inicializados!");
     return ESP_OK;
+}
+
+bool sensor_objeto_presente(servo_id_t id, sensor_tipo_t tipo)
+{
+    if (id >= SERVO_MAX_COUNT) return false;
+
+    gpio_num_t pino = (tipo == SENSOR_ENTRADA) ? sensores_entrada[id] : sensores_saida[id];
+    return (gpio_get_level(pino) == 0); // 0 (LOW) = Objeto detectado
 }
 
 esp_err_t servo_angulo(servo_id_t id, uint8_t angle_deg)
@@ -62,20 +90,15 @@ esp_err_t servo_angulo(servo_id_t id, uint8_t angle_deg)
         return ESP_ERR_INVALID_ARG;
     }
 
-    // Truncamento do ângulo para os limites de 0 a 180 graus
     if (angle_deg > 180) {
         angle_deg = 180;
     }
-    if (angle_deg < 0) {
-        angle_deg = 0;
-    }
 
-    // Cálculo do pulso em us
+    // Cálculo do tempo de pulso em us (500us a 2500us)
     uint32_t pulse_us = SERVO_MIN_PULSE_US + 
         ((SERVO_MAX_PULSE_US - SERVO_MIN_PULSE_US) * angle_deg) / 180;
 
-    // Conversão de microsegundos para Duty Cycle do LEDC
-    // Período total = 20.000us (50Hz)
+    // Converte microsegundos para o equivalente em Duty Cycle (Timer 14-bit @ 50Hz)
     uint32_t duty = (pulse_us * SERVO_MAX_DUTY) / 20000;
 
     esp_err_t err = ledc_set_duty(LEDC_LOW_SPEED_MODE, servos[id].channel, duty);
@@ -95,20 +118,19 @@ esp_err_t servo_angulo(servo_id_t id, uint8_t angle_deg)
 
 void servo_desativar(servo_id_t id)
 {
-   servo_angulo(id, 90); // Retorna o servo para a posição neutra (90 graus)
+    servo_angulo(id, 90); // Posição de repouso (paralelo à esteira)
 }
 
 void servo_abrir(servo_id_t id)
 {
-    // Coloca o servo na posição de abertura
-    if (id == 1){
-        servo_angulo(id, 145);
-    } else {
+    if (id == servo2) {
         servo_angulo(id, 50);
+    } else {
+        servo_angulo(id, 150);
     }
-} */
+}
 
-#include "servo.h"
+/*#include "servo.h"
 #include "driver/gpio.h"
 #include "esp_log.h"
 
@@ -167,4 +189,4 @@ void servo_abrir(servo_id_t id)
         gpio_set_level(servo_gpios[id], 1); // ACENDE O LED
         ESP_LOGI(TAG, "LED %d ACESO (Servo Acionado)", id + 1);
     }
-}
+}*/
