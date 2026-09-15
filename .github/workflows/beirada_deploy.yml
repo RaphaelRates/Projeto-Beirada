@@ -40,7 +40,7 @@ jobs:
 
       - name: Instalar dependências
         run: |
-          pip install -r beirada_ia/pp/requirements.txt
+          pip install -r beirada_ia/app/requirements.txt
           pip install pytest ruff
 
       - name: Download modelo para testes
