@@ -235,3 +235,27 @@ Projeto-Beirada/
 
 Para cada servo, siga a tabela de pinagem da [seção 4](#4-tabela-de-pinagem):
 
+- Fio **vermelho** → trilho 5 V da protoboard 1
+- Fio **marrom/preto** → trilho GND
+- Fio **laranja/amarelo** → GPIO correspondente do ESP32-S3
+
+### 1.3 Posicionar servos e sensores na esteira
+
+**(IMAGEM: foto em vista superior com as cotas anotadas: a distância e o ângulo marcados com setas e medidas sobre a imagem.)**
+
+| Elemento | Posicionamento |
+|---|---|
+| Servomotor | A aproximadamente **X cm** da esteira de destino, no lado **oposto** ao desvio, de modo que o braço empurre a peça para fora da esteira principal |
+| Sensor de entrada | Logo **antes** do servo, inclinado a **Y°** em relação à esteira, no mesmo sentido de movimento, de forma a acompanhar a peça até que seja desviada |
+| Sensor de saída | Na **esteira perpendicular**, posicionado para detectar a peça já transferida |
+
+### 1.4 Conectar os sensores
+
+Cada E18-D80NK tem três fios:
+
+- **Marrom** → 5 V (protoboard 2)
+- **Azul** → GND
+- **Preto** (sinal OUT) → GPIO do ESP32-S3, conforme a tabela de pinagem
+
+
+
