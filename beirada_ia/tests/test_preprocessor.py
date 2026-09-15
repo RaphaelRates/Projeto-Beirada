@@ -4,10 +4,7 @@ Testes unitários do módulo preprocessor.py.
 Integra-se à suíte pytest (tests/test_api.py).
 """
 import numpy as np
-import pytest
-from beirada_ia.app.preprocessing.preprocessor import Preprocessor, PreprocessConfig
-
-
+from beirada_ia.app.preprocessing.preprocessor import PreprocessConfig, Preprocessor
 
 
 def make_frame(h=720, w=1352, dtype=np.uint8):

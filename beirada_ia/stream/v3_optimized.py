@@ -6,23 +6,18 @@ Saída: stream de vídeo anotado exibido via cv2.imshow() ou salvo em arquivo.
 Execução: python3 stream/v3_optimized.py --device 0 --infer-every 3
 """
 import argparse
-import json
 import queue
+import subprocess
+import sys
 import threading
 import time
-from pathlib import Path
 from collections import deque
-import sys
-import subprocess
-
+from pathlib import Path
 
 import cv2
 import numpy as np
-from ultralytics import YOLO
-
-
 import torch
-
+from ultralytics import YOLO
 
 _orig_torch_load = torch.load
 def _patched_torch_load(*args, **kwargs):
@@ -147,7 +142,7 @@ class RealtimeDetector:
         self.infer_every = infer_every
         self.infer_size  = infer_size
 
-        from app.preprocessing.preprocessor import Preprocessor, PreprocessConfig
+        from app.preprocessing.preprocessor import PreprocessConfig, Preprocessor
         self.preprocessor = Preprocessor(PreprocessConfig(infer_size=infer_size))
 
 

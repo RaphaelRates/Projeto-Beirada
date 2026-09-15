@@ -2,11 +2,13 @@
 Experimento E1: impacto da conversão de espaço de cor BGR → RGB.
 Compara três variantes de pré-processamento de cor.
 """
-import sys, cv2, numpy as np
+import sys
+
+import cv2
+import numpy as np
+
 sys.path.insert(0, '.')
 from preprocessing.utils.evaluate import evaluate_pipeline
-
-
 
 
 # ── Variante A: sem conversão (passa BGR puro ao modelo) ─────────

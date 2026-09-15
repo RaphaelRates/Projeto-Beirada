@@ -5,21 +5,16 @@ Acesse no navegador: http://<IP_DO_RASPBERRY>:5000/stream
 Execução: python3 stream/mjpeg_server.py --device 0 --port 5000
 """
 import argparse
+import sys
 import threading
 import time
-import sys
 from pathlib import Path
-
 
 import cv2
 from flask import Flask, Response
 
-
 sys.path.insert(0, str(Path(__file__).parent.parent))
 from stream.v3_optimized import OptimizedCamera, RealtimeDetector
-
-
-
 
 # ── Estado global do servidor ────────────────────────────────
 app     = Flask(__name__)
@@ -173,7 +168,7 @@ def main():
     time.sleep(1.0)  # aguarda primeiro frame
 
 
-    print(f"[INFO] Servidor MJPEG iniciado.")
+    print("[INFO] Servidor MJPEG iniciado.")
     print(f"[INFO] Acesse no navegador: http://<IP_DO_RASPBERRY>:{args.port}/")
     print(f"[INFO] Stream direto:        http://<IP_DO_RASPBERRY>:{args.port}/stream")
     print(f"[INFO] Health check:         http://<IP_DO_RASPBERRY>:{args.port}/health")

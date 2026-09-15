@@ -10,16 +10,14 @@ Uso:
   python stream/capture_frames.py --source mjpeg --url http://localhost:5001/stream
 """
 import argparse
+import subprocess
 import time
 import urllib.request
 from datetime import datetime
 from pathlib import Path
 
-
 import cv2
 import numpy as np
-import subprocess
-
 
 OUTPUT_DIR = Path("dataset/raw")
 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)

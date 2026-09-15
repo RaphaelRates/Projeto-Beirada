@@ -5,22 +5,17 @@ Buffer de 1 frame elimina o acúmulo e garante processamento do frame atual.
 Execução: python3 stream/v2_threaded.py --device 0
 """
 import argparse
-import json
 import queue
+import subprocess
+import sys
 import threading
 import time
 from pathlib import Path
-import sys
-import subprocess
-
 
 import cv2
 import numpy as np
-from ultralytics import YOLO
-
-
 import torch
-
+from ultralytics import YOLO
 
 _orig_torch_load = torch.load
 def _patched_torch_load(*args, **kwargs):
@@ -114,7 +109,7 @@ class CameraCapture:
                 self._proc.wait(timeout=2.0)
             except subprocess.TimeoutExpired:
                 self._proc.kill()
-        print(f"[CameraCapture] Encerrada — ",
+        print("[CameraCapture] Encerrada — ",
               f"capturados: {self.frames_captured}, ",
               f"descartados: {self.frames_dropped}")
 

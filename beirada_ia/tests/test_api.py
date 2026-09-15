@@ -9,18 +9,17 @@ import inspect
 import io
 import json
 import os
-import threading
 
 # Ajusta o PYTHONPATH: raiz do projeto (para "app" ser pacote) e app/ (para os imports internos de main.py, como "from schemas import ...")
 import sys
+import threading
 from pathlib import Path
 
 import numpy as np
 import pytest
 from fastapi.testclient import TestClient
-from PIL import Image
-
 from grafana_exporter import GrafanaCloudExporter
+from PIL import Image
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 sys.path.insert(0, str(Path(__file__).parent.parent / "app"))
@@ -29,10 +28,11 @@ sys.path.insert(0, str(Path(__file__).parent.parent / "app"))
 os.environ.setdefault("MODEL_NAME", "yolov8n_v5.pt")
 
 
-from app import _decode_image, _run_stream_or_camera_only, app, stream_camera
 from model import get_default_model_name
 from preprocessing.preprocessor import CONFIG_DEFAULT
 from schemas import PredictRequest
+
+from app import _decode_image, _run_stream_or_camera_only, app, stream_camera
 
 try:
     from app import OptimizedCamera, RealtimeDetector

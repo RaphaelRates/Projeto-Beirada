@@ -3,18 +3,16 @@ preprocessing/utils/evaluate.py
 Avalia o mAP@0.5 de um pipeline de pré-processamento no dataset epi-v1.
 Recebe uma função de pré-processamento e retorna as métricas.
 """
-import time
-from pathlib import Path
-from typing import Callable, Optional
-
-
-import numpy as np
-import cv2
-from ultralytics import YOLO
 import shutil
-import yaml
-import torch
+import time
+from collections.abc import Callable
+from pathlib import Path
 
+import cv2
+import numpy as np
+import torch
+import yaml
+from ultralytics import YOLO
 
 _orig_torch_load = torch.load
 def _patched_torch_load(*args, **kwargs):
@@ -28,7 +26,7 @@ DATASET_YAML = "dataset/exports/epi-v1/data.yaml"
 MODEL_PATH   = "models/yolov8n_v4_v3_v3.pt"
 
 def evaluate_pipeline(
-    preprocess_fn: Optional[Callable] = None,
+    preprocess_fn: Callable | None = None,
     label: str = "baseline",
     split: str = "val",
     verbose: bool = False,

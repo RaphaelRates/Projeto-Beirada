@@ -10,19 +10,18 @@ import uuid
 from pathlib import Path
 
 import cv2
-from fastapi.staticfiles import StaticFiles
-from fastapi.templating import Jinja2Templates
 import httpx
 import numpy as np
-from fastapi import FastAPI, HTTPException, Query, Request, Response
+from core.esp32 import enviar, iniciar
+from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.responses import HTMLResponse, StreamingResponse
-import serial
+from fastapi.staticfiles import StaticFiles
+from fastapi.templating import Jinja2Templates
 from model import get_default_model_name, load_model
 from PIL import Image
+from preprocessing.preprocessor import CONFIG_DEFAULT, Preprocessor
 from prometheus_client import Counter, Gauge, Histogram, start_http_server
 from schemas import (
-    BatchPredictRequest,
-    BatchPredictResponse,
     Detection,
     HealthResponse,
     MetricsResponse,
@@ -30,14 +29,11 @@ from schemas import (
     PredictResponse,
 )
 
-from core.esp32 import iniciar, enviar, fechar
-from preprocessing.preprocessor import CONFIG_DEFAULT, Preprocessor
-
 templates = Jinja2Templates(directory="templates")
 
-SERIAL_PORT = "/dev/ttyUSB0"   # Linux/Pi  |  "COM3" no Windows
+SERIAL_PORT = "/dev/ttyUSB0"  # "COM3" no Windows
 BAUD = 115200
-
+_preprocessor = Preprocessor(CONFIG_DEFAULT) 
 
 try:
     _METRICS_PORT = int(os.environ.get("PROMETHEUS_PORT", "8001"))
@@ -48,52 +44,26 @@ except Exception:
 
 iniciar(SERIAL_PORT, BAUD)
 
-INFERENCE_TIME = Gauge(
-    "yolo_inference_time_seconds",
-    "Tempo de inferência do YOLO em segundos (última execução)",
-)
-
-# ---------------------------------------------------------------------------
-# Métricas por classe (para os painéis de "quantidade por classe",
-# "percentual por classe" e "confiança por classe" no Grafana).
-#
-# Só publicamos as classes em _MONITORED_CLASSES. Todas as demais são
-# ignoradas e não tocam nenhum counter/gauge/histogram abaixo.
-# ---------------------------------------------------------------------------
-DETECTIONS_BY_CLASS_TOTAL = Counter(
-    "yolo_detections_by_class_total",
-    "Total cumulativo de objetos detectados pelo YOLO por classe",
+INFERENCE_TIME = Gauge("yolo_inference_time_seconds","Tempo de inferência do YOLO em segundos (última execução)",)
+DETECTIONS_BY_CLASS_TOTAL = Counter("yolo_detections_by_class_total","Total cumulativo de objetos detectados pelo YOLO por classe",["class_name"],)
+DETECTIONS_COUNT_BY_CLASS = Gauge("yolo_detections_count_by_class","Quantidade de objetos da classe detectados na última inferência ""(zerado explicitamente quando a classe não aparece mais no frame)",["class_name"],)
+DETECTION_CLASS_PERCENTAGE = Gauge(
+    "yolo_detection_class_percentage",
+    "Percentual (0-100) que a classe representa do total de detecções "
+    "monitoradas na última inferência",
     ["class_name"],
 )
-DETECTIONS_COUNT_BY_CLASS = Gauge(
-    "yolo_detections_count_by_class",
-    "Quantidade de objetos da classe detectados na última inferência "
-    "(zerado explicitamente quando a classe não aparece mais no frame)",
+DETECTION_CONFIDENCE = Gauge("yolo_detection_confidence_last","Última confiança média observada por classe na última inferência",["class_name"],)
+DETECTION_CONFIDENCE_HISTOGRAM = Histogram(
+    "yolo_detection_confidence",
+    "Distribuição de confiança das detecções por classe "
+    "(use para média/percentis por classe ao longo do tempo no Grafana)",
     ["class_name"],
+    buckets=[0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.65, 0.7, 0.75, 0.8, 0.85, 0.9, 0.95, 1.0],
 )
-
-DETECTION_CONFIDENCE = Gauge(
-    "yolo_detection_confidence_last",
-    "Última confiança média observada por classe na última inferência",
-    ["class_name"],
-)
-
-STREAM_ACTIVE = Gauge(
-    "yolo_stream_active",
-    "1 se há um stream de câmera em andamento, 0 caso contrário",
-)
-STREAM_FPS = Gauge(
-    "yolo_stream_fps",
-    "Taxa de quadros por segundo entregues pelo stream (média móvel simples)",
-)
-
-_MONITORED_CLASSES = {
-    "serrote",
-    "martelo",
-    "parafuso",
-    "estilete",
-}
-
+STREAM_ACTIVE = Gauge("yolo_stream_active","1 se há um stream de câmera em andamento, 0 caso contrário",)
+STREAM_FPS = Gauge("yolo_stream_fps","Taxa de quadros por segundo entregues pelo stream (média móvel simples)",)
+_MONITORED_CLASSES = {"serrote","martelo","parafuso","estilete",}
 
 app = FastAPI(
     title="YOLO Inference API",
@@ -106,17 +76,14 @@ _metrics_file = Path("/tmp/beirada_metrics.json")
 _metrics_lock_file = Path("/tmp/beirada_metrics.lock")
 _streaming_lock = asyncio.Lock()
 
-
 def _metrics_default():
     return {"total": 0, "success": 0, "total_ms": 0.0}
-
 
 def _metrics_ensure_file():
     _metrics_file.parent.mkdir(parents=True, exist_ok=True)
     if not _metrics_file.exists():
         with _metrics_file.open("w", encoding="utf-8") as fp:
             json.dump(_metrics_default(), fp)
-
 
 def _metrics_load():
     _metrics_ensure_file()
@@ -197,18 +164,19 @@ def _publish_detection_metrics(model, results, logged_objects=None):
                 track_id = int(box.id[0].item())
 
             object_key = (cls_name, track_id)
-            should_log = (
-                logged_objects is None
-                or (track_id is not None and object_key not in logged_objects)
-            )
+            should_log = (logged_objects is None or (track_id is not None and object_key not in logged_objects))
+            
             if should_log:
-                enviar(f"{cls_name},{round(conf_val, 4)},{track_id}")
-                log_event(
-                    "object_detected",
-                    class_name=cls_name,
-                    confidence=round(conf_val, 4),
-                    track_id=track_id,
-                )
+                match cls_name:
+                    case "martelo":
+                        enviar("1\n")
+                    case "parafuso":
+                        enviar("2\n")
+                    case "estilete":
+                        enviar("3\n")
+                    case "serrote":
+                        enviar("4\n")
+                log_event("object_detected",class_name=cls_name,confidence=round(conf_val, 4),track_id=track_id,)
                 if logged_objects is not None and track_id is not None:
                     logged_objects.add(object_key)
 
@@ -227,22 +195,16 @@ def _publish_detection_metrics(model, results, logged_objects=None):
         DETECTIONS_COUNT_BY_CLASS.labels(cls_name).set(count)
 
         percentage = (count / total_monitored * 100) if total_monitored > 0 else 0.0
+        DETECTION_CLASS_PERCENTAGE.labels(cls_name).set(round(percentage, 2))
 
         avg_confidence = (confidence_sums[cls_name] / count) if count > 0 else 0.0
         DETECTION_CONFIDENCE.labels(cls_name).set(round(avg_confidence, 4))
 
         if count > 0:
-            summary.append({
-                "class": cls_name,
-                "count": count,
-                "percentage": round(percentage, 2),
-                "avg_confidence": round(avg_confidence, 4),
+            summary.append({"class": cls_name,"count": count,"percentage": round(percentage, 2),"avg_confidence": round(avg_confidence, 4),
             })
 
     return summary
-
-
-_preprocessor = Preprocessor(CONFIG_DEFAULT)  # instância global
 
 
 def _run_inference(image_np: np.ndarray, model_name: str, confidence: float) -> PredictResponse:
@@ -470,226 +432,226 @@ def predict(request: PredictRequest):
         raise HTTPException(status_code=500, detail=str(e)) from e
 
 
-@app.post("/predict/image", responses={200: {"content": {"image/jpeg": {}}}})
-def predict_image(request: PredictRequest):
-    """Executa inferência em imagem enviada e retorna JPEG com caixas delimitadoras."""
-    request_id = str(uuid.uuid4())[:8]
-    _metrics_update(total_delta=1)
+# @app.post("/predict/image", responses={200: {"content": {"image/jpeg": {}}}})
+# def predict_image(request: PredictRequest):
+#     """Executa inferência em imagem enviada e retorna JPEG com caixas delimitadoras."""
+#     request_id = str(uuid.uuid4())[:8]
+#     _metrics_update(total_delta=1)
 
-    log_event(
-        "predict_image_start",
-        request_id=request_id,
-        model=request.model_name,
-        confidence=request.confidence,
-    )
+#     log_event(
+#         "predict_image_start",
+#         request_id=request_id,
+#         model=request.model_name,
+#         confidence=request.confidence,
+#     )
 
-    try:
-        img_rgb = _load_image_from_request(request)
-        model = load_model(request.model_name)
+#     try:
+#         img_rgb = _load_image_from_request(request)
+#         model = load_model(request.model_name)
 
-        t0 = time.perf_counter()
-        results = model(img_rgb, conf=request.confidence, verbose=False)
-        elapsed_ms = (time.perf_counter() - t0) * 1000
+#         t0 = time.perf_counter()
+#         results = model(img_rgb, conf=request.confidence, verbose=False)
+#         elapsed_ms = (time.perf_counter() - t0) * 1000
 
-        INFERENCE_TIME.set(elapsed_ms / 1000)
-        classes_summary = _publish_detection_metrics(model, results)
-        log_event(
-            "predict_image_detections",
-            request_id=request_id,
-            model=request.model_name,
-            detections=classes_summary,
-        )
+#         INFERENCE_TIME.set(elapsed_ms / 1000)
+#         classes_summary = _publish_detection_metrics(model, results)
+#         log_event(
+#             "predict_image_detections",
+#             request_id=request_id,
+#             model=request.model_name,
+#             detections=classes_summary,
+#         )
 
-        _metrics_update(success_delta=1, total_ms_delta=elapsed_ms)
+#         _metrics_update(success_delta=1, total_ms_delta=elapsed_ms)
 
-        annotated_array = results[0].plot()
-        annotated_pil = Image.fromarray(annotated_array)
+#         annotated_array = results[0].plot()
+#         annotated_pil = Image.fromarray(annotated_array)
 
-        buffer = io.BytesIO()
-        annotated_pil.save(buffer, format="JPEG", quality=95)
+#         buffer = io.BytesIO()
+#         annotated_pil.save(buffer, format="JPEG", quality=95)
 
-        log_event(
-            "predict_image_complete",
-            request_id=request_id,
-            inference_ms=round(elapsed_ms, 2),
-        )
+#         log_event(
+#             "predict_image_complete",
+#             request_id=request_id,
+#             inference_ms=round(elapsed_ms, 2),
+#         )
 
-        return Response(content=buffer.getvalue(), media_type="image/jpeg")
+#         return Response(content=buffer.getvalue(), media_type="image/jpeg")
 
-    except HTTPException:
-        raise
-    except FileNotFoundError as e:
-        log_event(
-            "predict_image_error",
-            level="ERROR",
-            request_id=request_id,
-            reason=str(e),
-        )
-        raise HTTPException(status_code=404, detail=str(e)) from e
-    except Exception as e:
-        log_event(
-            "predict_image_error",
-            level="ERROR",
-            request_id=request_id,
-            reason=str(e),
-        )
-        raise HTTPException(status_code=500, detail=str(e)) from e
-
-
-@app.post("/predict/camera", response_model=PredictResponse)
-def predict_from_camera(
-    device_id: int = Query(0, description="Índice do dispositivo (/dev/videoX)"),
-    confidence: float = Query(0.65, ge=0.0, le=1.0, description="Limiar de confiança"),
-    model_name: str = Query("yolov8n_v5.pt", description="Modelo YOLO a ser utilizado"),
-):
-    """Captura uma foto pela câmera, executa inferência e retorna as detecções."""
-    request_id = str(uuid.uuid4())[:8]
-    _metrics_update(total_delta=1)
-
-    log_event(
-        "camera_predict_start",
-        request_id=request_id,
-        device_id=device_id,
-        model=model_name,
-        confidence=confidence,
-    )
-
-    try:
-        img_rgb = _capture_frame_from_camera(device_id=device_id)
-        result = _run_inference(img_rgb, model_name, confidence)
-
-        _metrics_update(success_delta=1, total_ms_delta=result.inference_ms)
-
-        log_event(
-            "camera_predict_complete",
-            request_id=request_id,
-            detections=len(result.detections),
-            inference_ms=result.inference_ms,
-        )
-        return result
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        log_event(
-            "camera_predict_error",
-            level="ERROR",
-            request_id=request_id,
-            reason=str(e),
-        )
-        raise HTTPException(status_code=500, detail=str(e)) from e
+#     except HTTPException:
+#         raise
+#     except FileNotFoundError as e:
+#         log_event(
+#             "predict_image_error",
+#             level="ERROR",
+#             request_id=request_id,
+#             reason=str(e),
+#         )
+#         raise HTTPException(status_code=404, detail=str(e)) from e
+#     except Exception as e:
+#         log_event(
+#             "predict_image_error",
+#             level="ERROR",
+#             request_id=request_id,
+#             reason=str(e),
+#         )
+#         raise HTTPException(status_code=500, detail=str(e)) from e
 
 
-@app.get("/predict/camera/image", responses={200: {"content": {"image/jpeg": {}}}})
-def predict_from_camera_image(
-    device_id: int = Query(0, description="Índice do dispositivo (/dev/videoX)"),
-    confidence: float = Query(0.65, ge=0.0, le=1.0, description="Limiar de confiança"),
-    model_name: str = Query("yolov8n_v5.pt", description="Modelo YOLO a ser utilizado"),
-):
-    """Captura imagem da câmera, executa inferência e retorna JPEG anotado."""
-    request_id = str(uuid.uuid4())[:8]
-    _metrics_update(total_delta=1)
+# @app.post("/predict/camera", response_model=PredictResponse)
+# def predict_from_camera(
+#     device_id: int = Query(0, description="Índice do dispositivo (/dev/videoX)"),
+#     confidence: float = Query(0.65, ge=0.0, le=1.0, description="Limiar de confiança"),
+#     model_name: str = Query("yolov8n_v5.pt", description="Modelo YOLO a ser utilizado"),
+# ):
+#     """Captura uma foto pela câmera, executa inferência e retorna as detecções."""
+#     request_id = str(uuid.uuid4())[:8]
+#     _metrics_update(total_delta=1)
 
-    log_event(
-        "camera_image_start",
-        request_id=request_id,
-        device_id=device_id,
-        model=model_name,
-        confidence=confidence,
-    )
+#     log_event(
+#         "camera_predict_start",
+#         request_id=request_id,
+#         device_id=device_id,
+#         model=model_name,
+#         confidence=confidence,
+#     )
 
-    try:
-        img_rgb = _capture_frame_from_camera(device_id=device_id)
-        model = load_model(model_name)
+#     try:
+#         img_rgb = _capture_frame_from_camera(device_id=device_id)
+#         result = _run_inference(img_rgb, model_name, confidence)
 
-        t0 = time.perf_counter()
-        results = model(img_rgb, conf=confidence, verbose=False)
-        elapsed_ms = (time.perf_counter() - t0) * 1000
+#         _metrics_update(success_delta=1, total_ms_delta=result.inference_ms)
 
-        INFERENCE_TIME.set(elapsed_ms / 1000)
-        classes_summary = _publish_detection_metrics(model, results)
-        log_event(
-            "camera_image_detections",
-            request_id=request_id,
-            model=model_name,
-            detections=classes_summary,
-        )
+#         log_event(
+#             "camera_predict_complete",
+#             request_id=request_id,
+#             detections=len(result.detections),
+#             inference_ms=result.inference_ms,
+#         )
+#         return result
 
-        _metrics_update(success_delta=1, total_ms_delta=elapsed_ms)
-
-        annotated_array = results[0].plot()
-        annotated_pil = Image.fromarray(annotated_array)
-
-        buffer = io.BytesIO()
-        annotated_pil.save(buffer, format="JPEG", quality=95)
-
-        log_event(
-            "camera_image_complete",
-            request_id=request_id,
-            inference_ms=round(elapsed_ms, 2),
-        )
-
-        return Response(content=buffer.getvalue(), media_type="image/jpeg")
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        log_event(
-            "camera_image_error",
-            level="ERROR",
-            request_id=request_id,
-            reason=str(e),
-        )
-        raise HTTPException(status_code=500, detail=str(e)) from e
+#     except HTTPException:
+#         raise
+#     except Exception as e:
+#         log_event(
+#             "camera_predict_error",
+#             level="ERROR",
+#             request_id=request_id,
+#             reason=str(e),
+#         )
+#         raise HTTPException(status_code=500, detail=str(e)) from e
 
 
-@app.post("/predict/batch", response_model=BatchPredictResponse)
-def predict_batch(request: BatchPredictRequest):
-    request_id = str(uuid.uuid4())[:8]
-    t_total = time.perf_counter()
-    results = []
+# @app.get("/predict/camera/image", responses={200: {"content": {"image/jpeg": {}}}})
+# def predict_from_camera_image(
+#     device_id: int = Query(0, description="Índice do dispositivo (/dev/videoX)"),
+#     confidence: float = Query(0.65, ge=0.0, le=1.0, description="Limiar de confiança"),
+#     model_name: str = Query("yolov8n_v5.pt", description="Modelo YOLO a ser utilizado"),
+# ):
+#     """Captura imagem da câmera, executa inferência e retorna JPEG anotado."""
+#     request_id = str(uuid.uuid4())[:8]
+#     _metrics_update(total_delta=1)
 
-    log_event(
-        "batch_predict_start",
-        request_id=request_id,
-        images=len(request.images_base64),
-        model=request.model_name,
-        confidence=request.confidence,
-    )
+#     log_event(
+#         "camera_image_start",
+#         request_id=request_id,
+#         device_id=device_id,
+#         model=model_name,
+#         confidence=confidence,
+#     )
 
-    try:
-        for img_b64 in request.images_base64:
-            img = _decode_image(img_b64)
-            result = _run_inference(
-                img,
-                request.model_name,
-                request.confidence,
-            )
-            results.append(result)
-            _metrics_update(total_delta=1, success_delta=1, total_ms_delta=result.inference_ms)
+#     try:
+#         img_rgb = _capture_frame_from_camera(device_id=device_id)
+#         model = load_model(model_name)
 
-        total_ms = (time.perf_counter() - t_total) * 1000
+#         t0 = time.perf_counter()
+#         results = model(img_rgb, conf=confidence, verbose=False)
+#         elapsed_ms = (time.perf_counter() - t0) * 1000
 
-        log_event(
-            "batch_predict_complete",
-            request_id=request_id,
-            images=len(results),
-            total_ms=round(total_ms, 2),
-        )
+#         INFERENCE_TIME.set(elapsed_ms / 1000)
+#         classes_summary = _publish_detection_metrics(model, results)
+#         log_event(
+#             "camera_image_detections",
+#             request_id=request_id,
+#             model=model_name,
+#             detections=classes_summary,
+#         )
 
-        return BatchPredictResponse(
-            results=results,
-            total_inference_ms=round(total_ms, 2),
-        )
+#         _metrics_update(success_delta=1, total_ms_delta=elapsed_ms)
 
-    except Exception as e:
-        log_event(
-            "batch_predict_error",
-            level="ERROR",
-            request_id=request_id,
-            reason=str(e),
-        )
-        raise HTTPException(status_code=500, detail=str(e)) from e
+#         annotated_array = results[0].plot()
+#         annotated_pil = Image.fromarray(annotated_array)
+
+#         buffer = io.BytesIO()
+#         annotated_pil.save(buffer, format="JPEG", quality=95)
+
+#         log_event(
+#             "camera_image_complete",
+#             request_id=request_id,
+#             inference_ms=round(elapsed_ms, 2),
+#         )
+
+#         return Response(content=buffer.getvalue(), media_type="image/jpeg")
+
+#     except HTTPException:
+#         raise
+#     except Exception as e:
+#         log_event(
+#             "camera_image_error",
+#             level="ERROR",
+#             request_id=request_id,
+#             reason=str(e),
+#         )
+#         raise HTTPException(status_code=500, detail=str(e)) from e
+
+
+# @app.post("/predict/batch", response_model=BatchPredictResponse)
+# def predict_batch(request: BatchPredictRequest):
+#     request_id = str(uuid.uuid4())[:8]
+#     t_total = time.perf_counter()
+#     results = []
+
+#     log_event(
+#         "batch_predict_start",
+#         request_id=request_id,
+#         images=len(request.images_base64),
+#         model=request.model_name,
+#         confidence=request.confidence,
+#     )
+
+#     try:
+#         for img_b64 in request.images_base64:
+#             img = _decode_image(img_b64)
+#             result = _run_inference(
+#                 img,
+#                 request.model_name,
+#                 request.confidence,
+#             )
+#             results.append(result)
+#             _metrics_update(total_delta=1, success_delta=1, total_ms_delta=result.inference_ms)
+
+#         total_ms = (time.perf_counter() - t_total) * 1000
+
+#         log_event(
+#             "batch_predict_complete",
+#             request_id=request_id,
+#             images=len(results),
+#             total_ms=round(total_ms, 2),
+#         )
+
+#         return BatchPredictResponse(
+#             results=results,
+#             total_inference_ms=round(total_ms, 2),
+#         )
+
+#     except Exception as e:
+#         log_event(
+#             "batch_predict_error",
+#             level="ERROR",
+#             request_id=request_id,
+#             reason=str(e),
+#         )
+#         raise HTTPException(status_code=500, detail=str(e)) from e
 
 
 @app.get("/metrics", response_model=MetricsResponse)
@@ -714,7 +676,7 @@ async def get_metrics():
 @app.get("/stream/camera")
 async def stream_camera(
     request: Request,
-    confidence: float = Query(0.65, ge=0.0, le=1.0),
+    confidence: float = Query(0.70, ge=0.0, le=1.0),
     model_name: str = Query("yolov8n_v5.pt"),
     framerate: int = Query(40, ge=1, le=60),
 ):
@@ -729,27 +691,15 @@ async def stream_camera(
     """
 
     if _streaming_lock.locked():
-        raise HTTPException(
-            status_code=409,
-            detail="Já existe um stream em andamento.",
-        )
+        raise HTTPException(status_code=409,detail="Já existe um stream em andamento.",)
 
     model = None
     try:
         model = load_model(model_name)
     except Exception as exc:
-        log_event(
-            "stream_yolo_load_failed",
-            level="WARN",
-            model=model_name,
-            reason=str(exc),
-        )
+        log_event("stream_yolo_load_failed",level="WARN",model=model_name,reason=str(exc),)
 
     logged_objects = set()
-
-    # Tamanho máximo que o buffer pode atingir antes de ser descartado
-    # (evita crescimento indefinido caso os marcadores JPEG nunca sejam
-    # encontrados, por exemplo por corrupção no stream do rpicam-vid).
     MAX_BUFFER_SIZE = 5 * 1024 * 1024  # 5 MB
 
     def run_inference(frame):
@@ -789,14 +739,11 @@ async def stream_camera(
 
                 try:
                     while True:
-
                         chunk = await loop.run_in_executor(None, proc.stdout.read, 65536)
-
                         if not chunk:
                             break
 
                         buffer += chunk
-
                         if len(buffer) > MAX_BUFFER_SIZE:
                             log_event("stream_buffer_overflow", level="WARN", size=len(buffer))
                             buffer = b""
@@ -804,12 +751,10 @@ async def stream_camera(
 
                         while True:
                             start = buffer.find(b"\xff\xd8")
-
                             if start == -1:
                                 break
 
                             end = buffer.find(b"\xff\xd9", start + 2)
-
                             if end == -1:
                                 break
 
@@ -832,7 +777,6 @@ async def stream_camera(
             try:
                 proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, bufsize=0)
                 log_event("stream_started", pid=proc.pid, model=model_name, confidence=confidence)
-
                 loop = asyncio.get_running_loop()
                 reader_task = asyncio.create_task(read_frames())
 
@@ -856,29 +800,15 @@ async def stream_camera(
                         if frame is None:
                             continue
 
-                        frame = await loop.run_in_executor(
-                            None,
-                            run_inference,
-                            frame,
-                        )
-
-                        success, encoded = cv2.imencode(
-                            ".jpg",
-                            frame,
-                            [cv2.IMWRITE_JPEG_QUALITY, 70],
-                        )
+                        frame = await loop.run_in_executor(None,run_inference,frame,)
+                        success, encoded = cv2.imencode(".jpg",frame,[cv2.IMWRITE_JPEG_QUALITY, 70],)
 
                         if not success:
                             continue
 
-                        # Atualiza FPS entregue (média móvel exponencial),
-                        # para o Grafana acompanhar a saúde do stream.
                         now = time.perf_counter()
                         instant_fps = 1.0 / max(now - fps_last_ts, 1e-6)
-                        fps_smoothed = (
-                            instant_fps if fps_smoothed == 0.0
-                            else (0.8 * fps_smoothed + 0.2 * instant_fps)
-                        )
+                        fps_smoothed = (instant_fps if fps_smoothed == 0.0 else (0.8 * fps_smoothed + 0.2 * instant_fps))
                         fps_last_ts = now
                         STREAM_FPS.set(round(fps_smoothed, 2))
 
@@ -912,7 +842,6 @@ async def stream_camera(
                         proc.wait(timeout=2)
 
                     if proc.stderr:
-
                         stderr_output = (proc.stderr.read().decode(errors="ignore").strip())
 
                         if stderr_output:

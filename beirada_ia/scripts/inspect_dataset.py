@@ -10,6 +10,7 @@ from pathlib import Path
 
 import yaml
 
+
 def parse_args():
     p = argparse.ArgumentParser()
     p.add_argument("--dataset", required=True, help="Caminho para data.yaml")

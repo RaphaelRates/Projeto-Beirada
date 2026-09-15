@@ -21,9 +21,7 @@ import subprocess
 import threading
 import time
 
-
 from flask import Flask, Response
-
 
 app = Flask(__name__)
 _lock = threading.Lock()

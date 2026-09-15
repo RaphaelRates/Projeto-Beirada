@@ -3,15 +3,16 @@ preprocessing/utils/letterbox.py
 Implementação manual do letterbox — a mesma lógica usada internamente
 pelo YOLOv8 (ultralytics/data/augment.py).
 """
-from typing import Tuple
+
 import cv2
 import numpy as np
+
 
 def letterbox(
     frame: np.ndarray,
     target_size: int = 1352,
     pad_color: int = 114,
-) -> Tuple[np.ndarray, float, Tuple[int, int]]:
+) -> tuple[np.ndarray, float, tuple[int, int]]:
     """
     Redimensiona preservando proporção e adiciona padding cinza.
 

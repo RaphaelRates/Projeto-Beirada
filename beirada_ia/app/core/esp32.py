@@ -1,7 +1,8 @@
 # esp32.py
-import serial
 import threading
 import time
+
+import serial
 
 _ser = None
 _lock = threading.Lock()
