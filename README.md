@@ -330,6 +330,124 @@ Substitua `/dev/ttyACM0` pela porta do seu sistema (no Linux costuma ser `/dev/t
 
 ---
 
+## Passo 4: Configuração do sistema
 
+### 4.1 Clonar o repositório
+
+```bash
+git clone <url-do-repositorio>
+cd Projeto-Beirada
+```
+
+### 4.2 Obter os pesos do modelo
+
+**Opção A: usar um modelo já versionado no repositório**
+
+Os pesos `yolov8n.pt` e `yolov8n_v3.pt` estão presentes em `beirada_ia/models/`. Para usá-los, ajuste as variáveis no `docker-compose.yml`:
+
+```yaml
+- MODEL_NAME=yolov8n_v3.pt
+- MODEL_PATH=/app/models/yolov8n_v3.pt
+```
+
+**Opção B: configurar um remote próprio e puxar o `v4`**
+
+```bash
+dvc remote add -d meu_remote /caminho/para/armazenamento
+dvc pull beirada_ia/models/yolov8n_v4.pt.dvc
+```
+
+**Opção C: treinar seu próprio modelo** com o script em `beirada_ia/dataset/`, gerando um `.pt` com as suas 3–4 classes de peça.
+
+### 4.3 Variáveis de ambiente
+
+Todas ficam no `docker-compose.yml`, no serviço `yolo-api`:
+
+| Variável | Padrão | O que faz |
+|---|---|---|
+| `MODEL_NAME` | `yolov8n_v4.pt` | Nome do arquivo de pesos |
+| `MODEL_PATH` | `/app/models/yolov8n_v4.pt` | Caminho dentro do contêiner |
+| `CONFIDENCE` | `0.70` | Confiança mínima para aceitar uma detecção |
+| `ESP32_SERIAL_PORT` | `/dev/ttyACM0` | Porta serial do ESP32 |
+| `ESP32_SERIAL_BAUD` | `115200` | Deve casar com o firmware |
+| `ESP32_MIN_INTERVAL_S` | `0.1` | Intervalo mínimo entre comandos |
+| `ESP32_SERIAL_ENABLED` | `true` | Liga/desliga o enlace serial |
+
+### 4.4 Ajustar a porta serial se necessário
+
+Confirme qual dispositivo o ESP32 assumiu:
+
+```bash
+ls -l /dev/ttyACM* /dev/ttyUSB* 2>/dev/null
+```
+
+Se for diferente de `/dev/ttyACM0`, ajuste **os dois lugares** no `docker-compose.yml`: a variável `ESP32_SERIAL_PORT` e o mapeamento em `devices:`.
+
+### 4.5 Grafana Cloud (opcional)
+
+Para habilitar o envio de logs, preencha `beirada_ia/app/.env.grafana`:
+
+```bash
+GRAFANA_CLOUD_ENDPOINT="https://logs-prod-<REGIAO>.grafana.net/loki/api/v1/push"
+GRAFANA_CLOUD_USERNAME="<seu-user-id>"
+GRAFANA_CLOUD_TOKEN="<seu-token>"
+```
+
+Depois, carregue o arquivo no serviço adicionando ao `yolo-api` no `docker-compose.yml`:
+
+```yaml
+    env_file:
+      - ./beirada_ia/app/.env.grafana
+```
+
+Sem essa configuração o sistema funciona normalmente - apenas não exporta logs para o dashboard.
+
+---
+
+## Passo 5: Execução
+
+```bash
+docker compose up --build
+```
+
+Na primeira execução o build leva vários minutos (compilação do OpenCV e do PyTorch para ARM). Execuções seguintes usam cache.
+
+Para rodar em segundo plano:
+
+```bash
+docker compose up -d --build
+docker compose logs -f yolo-api
+```
+
+Para parar:
+
+```bash
+docker compose down
+```
+
+### Serviços expostos
+
+| Serviço | Endereço | Função |
+|---|---|---|
+| `yolo-api` | `http://<IP-DO-RPI>:8000` | API REST de inferência |
+| `yolo-stream` | `http://<IP-DO-RPI>:5000/stream` | Stream MJPEG anotado |
+| `yolo-client` | - | Roda inferências de teste automaticamente |
+
+### Endpoints principais
+
+| Método | Rota | Descrição |
+|---|---|---|
+| `GET` | `/health` | Estado do serviço e do modelo carregado |
+| `POST` | `/predict` | Inferência sobre imagem em base64, retorna JSON |
+| `POST` | `/predict/image` | Mesma inferência, retorna JPEG anotado |
+| `POST` | `/predict/camera` | Captura da câmera e infere, retorna JSON |
+| `GET` | `/predict/camera/image` | Captura da câmera e infere, retorna JPEG |
+| `POST` | `/predict/batch` | Lote de imagens |
+| `GET` | `/metrics` | Métricas acumuladas (total, sucesso, latência média) |
+| `GET` | `/stream/camera` | Stream MJPEG direto da API |
+| `GET` | `/stream/view` | Página HTML de visualização em tempo real |
+| `GET` | `/docs` | Documentação interativa (Swagger) |
+
+---
 
 
