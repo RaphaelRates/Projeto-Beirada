@@ -486,7 +486,7 @@ def predict_image(request: PredictRequest):
 def predict_from_camera(
     device_id: int = Query(0, description="Índice do dispositivo (/dev/videoX)"),
     confidence: float = Query(0.65, ge=0.0, le=1.0, description="Limiar de confiança"),
-    model_name: str = Query("yolov8n_v4.pt", description="Modelo YOLO a ser utilizado"),
+    model_name: str = Query("yolov8n_v5.pt", description="Modelo YOLO a ser utilizado"),
 ):
     """Captura uma foto pela câmera, executa inferência e retorna as detecções."""
     request_id = str(uuid.uuid4())[:8]
@@ -530,7 +530,7 @@ def predict_from_camera(
 def predict_from_camera_image(
     device_id: int = Query(0, description="Índice do dispositivo (/dev/videoX)"),
     confidence: float = Query(0.65, ge=0.0, le=1.0, description="Limiar de confiança"),
-    model_name: str = Query("yolov8n_v4.pt", description="Modelo YOLO a ser utilizado"),
+    model_name: str = Query("yolov8n_v5.pt", description="Modelo YOLO a ser utilizado"),
 ):
     """Captura imagem da câmera, executa inferência e retorna JPEG anotado."""
     request_id = str(uuid.uuid4())[:8]
@@ -665,7 +665,7 @@ async def get_metrics():
 async def stream_camera(
     request: Request,
     confidence: float = Query(0.65, ge=0.0, le=1.0),
-    model_name: str = Query("yolov8n_v4.pt"),
+    model_name: str = Query("yolov8n_v5.pt"),
     framerate: int = Query(40, ge=1, le=60),
 ):
     """Transmite vídeo contínuo da câmera com detecções YOLO em todo frame.

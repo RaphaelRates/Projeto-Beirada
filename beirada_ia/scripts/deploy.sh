@@ -31,7 +31,7 @@ echo "[INFO] Imagem atual: $PREVIOUS"
 echo "[1/4] Baixando nova imagem..."
 docker compose pull
 
-python3 -m dvc pull models/yolov8n_v4.pt
+python3 -m dvc pull models/yolov8n_v5.pt
 
 echo "[2/4] Iniciando nova versão..."
 docker compose up -d --build

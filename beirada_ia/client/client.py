@@ -42,7 +42,7 @@ def run_single_inference(image_path: Path, confidence: float = 0.65):
     payload = {
         "image_base64": encode_image(image_path),
         "confidence": confidence,
-        "model_name": "yolov8n_v4.pt",
+        "model_name": "yolov8n_v5.pt",
     }
     response = httpx.post(
         f"{API_URL}/predict",
