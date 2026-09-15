@@ -40,7 +40,7 @@ jobs:
 
       - name: Instalar dependências
         run: |
-          pip install -r app/requirements.txt
+          pip install -r beirada_ia/pp/requirements.txt
           pip install pytest ruff
 
       - name: Download modelo para testes
@@ -52,14 +52,14 @@ jobs:
           dvc remote modify --local local_remote keyfile ~/.ssh/dvc_key
           dvc pull
 
-      - name: Disponibiliza o modelo em /app/models
+      - name: Disponibiliza o modelo em beirada_ia/app/models
         run: |
-          sudo mkdir -p /app
-          sudo ln -sfn "$GITHUB_WORKSPACE/models" /app/models
-          ls -la /app/models
+          sudo mkdir -p beirada_ia/app
+          sudo ln -sfn "$GITHUB_WORKSPACE/models" beirada_ia/app/models
+          ls -la beirada_ia/app/models
 
       - name: Lint (ruff)
-        run: ruff check app/
+        run: ruff check beirada_ia/app/
 
       - name: Testes automatizados
         run: pytest tests/ -v --tb=short
