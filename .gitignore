@@ -48,10 +48,6 @@ htmlcov/
 *.pkl
 *.joblib
 
-# Ignora o conteúdo do dataset (o DVC deve cuidar disso)
-dataset/
-!dataset/.gitkeep
-
 # Ignora checkpoints do Jupyter (se houver)
 .ipynb_checkpoints/
 
