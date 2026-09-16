@@ -430,12 +430,6 @@ Substitua `/dev/ttyACM0` pela porta do seu sistema (no Linux costuma ser `/dev/t
 
 ## Passo 4: Configuração do sistema
 
-### Mapa de configuração do sistema
-
-A tabela abaixo apresenta as principais configurações do projeto, os valores utilizados na implementação e o local em que devem ser alteradas caso seja necessário adaptar o ambiente.
-
-(colocar tabela)
-
 ### 4.1 Clonar o repositório
 
 ```bash
