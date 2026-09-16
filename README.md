@@ -26,8 +26,8 @@
 11. [Passo 3: Compilação e gravação do firmware](#passo-3-compilação-e-gravação-do-firmware-esp32-s3)
 12. [Passo 4: Configuração do sistema](#passo-4-configuração-do-sistema)
 13. [Passo 5: Execução](#passo-5-execução)
-14. [Passo 6: Verificação do resultado](#passo-6-verificação-do-resultado)
-15. [Passo 7: Troubleshooting](#passo-7-troubleshooting)
+14. [Passo 7: Verificação do resultado](#passo-7-verificação-do-resultado)
+15. [Passo 8: Troubleshooting](#passo-8-troubleshooting)
 
 ---
 
@@ -312,14 +312,24 @@ Para cada servo, siga a tabela de pinagem da [seção 4](#4-tabela-de-pinagem):
 | Elemento | Posicionamento |
 |---|---|
 | Servomotor | A aproximadamente **X cm** da esteira de destino, no lado **oposto** ao desvio, de modo que o braço empurre a peça para fora da esteira principal |
-| Sensor de entrada | Logo **antes** do servo, inclinado a **Y°** em relação à esteira, no mesmo sentido de movimento, de forma a acompanhar a peça até que seja desviada |
+| Sensor de entrada | Logo **antes** do servo, inclinado a **90°** em relação à esteira, no mesmo sentido de movimento, de forma a acompanhar a peça até que seja desviada |
 | Sensor de saída | Na **esteira perpendicular**, posicionado para detectar a peça já transferida |
 
-### 1.4 Conectar os sensores
+### 1.4 Posicionar a câmera
+
+A câmera deve ser instalada de forma que seu campo de visão cubra a região da esteira utilizada para a detecção, mantendo as peças visíveis e com iluminação suficiente para a inferência.
+
+> **[IMAGEM: POSICIONAMENTO DA CÂMERA]**
+>
+> **Adicionar:** foto da montagem mostrando a câmera em relação à esteira, com altura, inclinação, distância até a região de detecção, área enquadrada e sentido de movimento da esteira.
+>
+> **Medidas da montagem final:** altura **X cm** · distância **Y cm** · inclinação **Z°**.
+
+### 1.5 Conectar os sensores
 
 Cada E18-D80NK tem três fios:
 
-- **Marrom** → 5 V (protoboard)
+- **Marrom** → trilho 5 V da protoboard
 - **Azul** → GND
 - **Preto** (sinal OUT) → GPIO do ESP32-S3, conforme a tabela de pinagem
 
@@ -476,7 +486,65 @@ Sem essa configuração o sistema funciona normalmente - apenas não exporta log
 
 ---
 
-## Passo 5: Execução
+## Passo 5: API, Streaming e Monitoramento
+
+### 5.1 API de inferência
+
+A API `yolo-api` disponibiliza endpoints para verificar o serviço, executar inferências e consultar métricas.
+
+| Método | Rota | Função |
+|---|---|---|
+| `GET` | `/health` | Verificar serviço e carregamento do modelo |
+| `POST` | `/predict` | Inferência sobre imagem |
+| `POST` | `/predict/image` | Inferência com imagem anotada |
+| `POST` | `/predict/camera` | Inferência usando a câmera |
+| `GET` | `/metrics` | Consultar métricas acumuladas |
+| `GET` | `/docs` | Documentação interativa Swagger |
+
+Para verificar a API:
+
+```bash
+curl http://localhost:8000/health
+```
+
+Também é possível acessar a documentação em `http://<IP-DO-RPI>:8000/docs`.
+
+> **[IMAGEM: API / SWAGGER]**
+>
+> **Adicionar:** captura da página `/docs` ou da resposta de `/health`, mostrando a API funcionando.
+
+### 5.2 Streaming
+
+O serviço `yolo-stream` disponibiliza o vídeo da câmera com as detecções do YOLO sobrepostas.
+
+```text
+http://<IP-DO-RPI>:5000/stream
+http://<IP-DO-RPI>:8000/stream/view
+```
+
+O resultado esperado é o vídeo da esteira em tempo real, com bounding boxes, classes e confiança das detecções.
+
+> **[IMAGEM: STREAMING]**
+>
+> **Adicionar:** captura do stream com peças reais e suas bounding boxes/rótulos.
+
+### 5.3 Grafana
+
+O sistema pode enviar logs para o **Grafana Cloud/Loki**. Essa integração é opcional e está descrita no Passo 4.5.
+
+Após configurar as credenciais e iniciar os serviços, o funcionamento pode ser acompanhado no dashboard configurado no Grafana. O endpoint `/metrics` também permite consultar as métricas disponibilizadas pela API.
+
+> **[IMAGEM: DASHBOARD GRAFANA]**
+>
+> **Adicionar:** captura do dashboard final com dados reais da execução, mostrando os principais indicadores e/ou logs do sistema.
+
+> **[IMAGEM: LOGS DA EXECUÇÃO]**
+>
+> **Adicionar:** captura dos logs mostrando a inicialização, inferências e comunicação com o ESP32.
+
+---
+
+## Passo 6: Execução
 
 ```bash
 docker compose up --build
