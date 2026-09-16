@@ -537,45 +537,9 @@ docker compose down
 
 ## Passo 6: Acompanhamento dos resultados
 
-Depois de iniciar os serviços, os resultados da execução podem ser acompanhados pela API, pelo streaming em tempo real e, quando configurado, pelo Grafana.
+Depois de iniciar os serviços, os resultados da execução podem ser acompanhados pelo streaming em tempo real e, quando configurado, pelo Grafana.
 
-### 6.1 API de inferência
-
-A API pode ser acessada pelo endereço:
-
-```text
-http://<IP-DO-RPI>:8000
-```
-
-Para verificar rapidamente se a API está funcionando e se o modelo foi carregado:
-
-```bash
-curl http://<IP-DO-RPI>:8000/health
-```
-
-A documentação interativa da API está disponível em:
-
-```text
-http://<IP-DO-RPI>:8000/docs
-```
-
-Os principais recursos disponibilizados pela API são:
-
-| Rota | Função |
-|---|---|
-| `/health` | Verifica o estado do serviço e do modelo carregado. |
-| `/predict` | Realiza inferência sobre uma imagem em base64 e retorna JSON. |
-| `/predict/image` | Realiza inferência e retorna a imagem anotada. |
-| `/predict/camera` | Captura uma imagem da câmera e realiza a inferência. |
-| `/predict/camera/image` | Captura da câmera e retorna a imagem anotada. |
-| `/predict/batch` | Realiza inferência sobre um lote de imagens. |
-| `/metrics` | Disponibiliza as métricas acumuladas da aplicação. |
-| `/docs` | Abre a documentação interativa (Swagger). |
-
-> **[IMAGEM: API / SWAGGER]**
-> Adicionar: captura da documentação Swagger aberta no endereço `/docs`, mostrando alguns dos endpoints disponíveis.
-
-### 6.2 Streaming
+### 6.1 Streaming
 
 O servidor de streaming disponibiliza a imagem da câmera em tempo real, com as detecções realizadas pelo modelo sobrepostas ao vídeo.
 
@@ -591,7 +555,7 @@ O resultado deve apresentar a imagem da esteira com as **bounding boxes** e os r
 > **[IMAGEM: STREAMING]**
 > Adicionar: captura do streaming em funcionamento, mostrando peças reais da esteira com bounding boxes e classes identificadas.
 
-### 6.3 Grafana e monitoramento
+### 6.2 Grafana e monitoramento
 
 Quando a integração com o Grafana Cloud estiver configurada, os logs da aplicação podem ser acompanhados no dashboard. A configuração é opcional e não interfere no funcionamento principal do sistema.
 
