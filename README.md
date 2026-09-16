@@ -484,6 +484,16 @@ Depois, carregue o arquivo no serviço adicionando ao `yolo-api` no `docker-comp
 
 Sem essa configuração o sistema funciona normalmente - apenas não exporta logs para o dashboard.
 
+### 4.6 Descobrir o IP da Raspberry Pi
+
+Para acessar a API, o streaming ou outros serviços da Raspberry Pi a partir de outra máquina na mesma rede, descubra o endereço IP da RPi com:
+
+```bash
+hostname -I
+```
+
+Use o endereço IPv4 retornado no lugar de `<IP-DO-RPI>` nos endereços apresentados nas próximas seções.
+
 ---
 
 ## Passo 5: Execução
@@ -530,12 +540,6 @@ docker compose down
 Depois de iniciar os serviços, os resultados da execução podem ser acompanhados pela API, pelo streaming em tempo real e, quando configurado, pelo Grafana.
 
 ### 6.1 API de inferência
-
-> Para acessar a API, o streaming ou outros serviços da Raspberry Pi a partir de outra máquina na mesma rede, descubra o endereço IP da RPi com:
-> ```bash
-> hostname -I
-> ```
-> Use o endereço IPv4 retornado no lugar de `<IP-DO-RPI>` nos endereços apresentados nas próximas seções.
 
 A API pode ser acessada pelo endereço:
 
@@ -601,107 +605,120 @@ A API também disponibiliza o endpoint `/metrics` para consulta das métricas ac
 
 ---
 
-## Passo 6: Verificação do resultado
+## Passo 7: Verificação da solução
 
-Esta é a seção que confirma que a replicação deu certo. Execute as verificações na ordem.
+A verificação final deve confirmar o funcionamento de cada etapa do sistema e, principalmente, do fluxo completo de triagem.
 
-### 6.1 Os contêineres subiram
+### 7.1 Serviços da aplicação
+
+Confirme que os três serviços estão em execução:
 
 ```bash
 docker compose ps
 ```
 
-**Esperado:** três serviços com `STATUS` em `Up`, e `yolo-api` marcado como `(healthy)`.
+O resultado deve indicar os serviços `yolo-api`, `yolo-stream` e `yolo-client` como ativos.
 
-### 6.2 A API responde e o modelo carregou
+### 7.2 API e modelo de inferência
+
+Na Raspberry Pi, consulte o estado da API:
 
 ```bash
 curl http://localhost:8000/health
 ```
 
-**Esperado:**
+A resposta deve indicar que o serviço está ativo e que o modelo foi carregado, por exemplo:
 
 ```json
 {"status":"ok","model_loaded":true,"model_name":"yolov8n_v4.pt"}
 ```
 
-Se `model_loaded` vier `false`, o caminho do modelo está errado; volte ao Passo 4.2.
-
-### 6.3 A inferência funciona sobre uma imagem
+Em seguida, teste uma captura da câmera:
 
 ```bash
 curl -X POST http://localhost:8000/predict/camera \
      -H "Content-Type: application/json" -d '{}'
 ```
 
-**Esperado:** JSON com um array `detections`, cada item contendo `label`, `confidence` e `bbox`, além de um campo de tempo de inferência.
+A resposta deve conter o campo `detections`. Cada detecção deve apresentar, quando houver uma peça identificada, sua `label`, `confidence` e `bbox`.
 
-### 6.4 O stream em tempo real funciona
+### 7.3 Resultado visual da detecção
 
-Abra no navegador de outra máquina da mesma rede:
+Acesse o streaming a partir de outro dispositivo da mesma rede:
 
-```
+```text
 http://<IP-DO-RPI>:5000/stream
 http://<IP-DO-RPI>:8000/stream/view
 ```
 
-**(IMAGEM: página /stream/view com bounding boxes desenhadas sobre peças reais)**
+Confirme visualmente que:
 
-**Esperado:** vídeo ao vivo da esteira com caixas delimitadoras e rótulos de classe sobre as peças.
+- a imagem da câmera está sendo atualizada;
+- as peças presentes na esteira são detectadas;
+- as **bounding boxes** estão posicionadas sobre as peças correspondentes;
+- o rótulo exibido corresponde à classe identificada.
 
-### 6.5 O ESP32 recebe comandos e aciona os servos
+> **[IMAGEM: RESULTADO DA DETECÇÃO]**
+> Adicionar: captura do streaming em funcionamento, com pelo menos uma peça identificada e suas bounding boxes e classes visíveis.
 
-Com o `idf.py monitor` aberto em um terminal:
+### 7.4 Comunicação e atuação do ESP32-S3
 
-```bash
-echo "1" > /dev/ttyACM0
+Com o firmware conectado e os serviços em execução, acompanhe os logs do ESP32-S3 durante a passagem de uma peça. O fluxo esperado é:
+
+```text
+Comando serial recebido → peça enfileirada → sensor de entrada detectado
+→ servo acionado → sensor de saída detectado → servo retorna à posição de repouso
 ```
 
-**Esperado no monitor:**
+Para uma peça das classes **1, 2 ou 3**, deve ocorrer o acionamento do servo correspondente. A classe **4** não possui servo associado e deve seguir diretamente pela esteira.
 
-```
-I (xxx) UART_COMUNICAO: Comando serial recebido: '1' -> Classe: 1
-I (xxx) LOGICA_FILAS: Peça classe 1 enfileirada para aguardar no Sensor 1
-I (xxx) LOGICA_FILAS: Servo 1 aguardando peça no Sensor de ENTRADA...
-```
+> **[IMAGEM: LOGS DO ESP32-S3]**
+> Adicionar: trecho do monitor serial mostrando o recebimento de uma classe, o acionamento do servo e a confirmação pelo sensor de saída.
 
-Agora passe a mão na frente do sensor de entrada 1:
+### 7.5 Teste ponta a ponta
 
-```
-I (xxx) LOGICA_FILAS: Peça na entrada do Servo 1! Acionando braço...
-I (xxx) LOGICA_FILAS: Aguardando confirmação no Sensor de SAÍDA 1...
-```
+Coloque uma peça de teste na esteira e acompanhe o ciclo completo:
 
-E na frente do sensor de saída 1:
+1. **Detecção:** a peça aparece no streaming com a classe correspondente.
+2. **Comunicação:** a classe detectada é enviada pela comunicação serial ao ESP32-S3.
+3. **Fila:** o comando é associado ao servo correspondente.
+4. **Entrada:** o sensor de entrada detecta a aproximação da peça.
+5. **Atuação:** o servo correspondente é acionado e desvia a peça.
+6. **Saída:** o sensor de saída confirma a transferência e o servo retorna à posição de repouso.
 
-```
-I (xxx) LOGICA_FILAS: Peça recebida na esteira perpendicular 1! Recolhendo servo.
-```
+Para uma peça da **classe 4**, o teste deve confirmar que ela permanece no trajeto principal, sem acionamento de servo.
 
-O servo deve abrir no primeiro evento e voltar a 90° no segundo.
+> **[GIF: CICLO COMPLETO]**
+> Adicionar: registro do ciclo completo, desde a peça na esteira e sua detecção até o desvio pelo servo.
 
-### 6.6 Teste ponta a ponta
+### 7.6 Testes automatizados
 
-**(IMAGEM: gif do ciclo completo - peça na esteira, detecção na tela, servo desviando)**
-
-Coloque uma peça na esteira em movimento e acompanhe:
-
-1. A peça aparece no stream com bounding box e rótulo correto.
-2. O sensor de entrada correspondente acusa a passagem no log do firmware.
-3. O servo aciona e desvia a peça.
-4. O sensor de saída confirma e o servo recolhe.
-
-### 6.7 Suíte de testes automatizados
+Os testes automatizados da aplicação podem ser executados com:
 
 ```bash
 docker compose exec yolo-api python -m pytest tests/ -v
 ```
 
-**Esperado:** todos os testes de `test_api.py` e `test_preprocessor.py` passando.
+O resultado esperado é que os testes de `test_api.py` e `test_preprocessor.py` sejam concluídos sem falhas.
 
+### Resultado esperado da replicação
+
+A replicação pode ser considerada concluída quando:
+
+- [ ] os serviços Docker estão em execução;
+- [ ] a API responde ao endpoint `/health` com o modelo carregado;
+- [ ] a câmera fornece imagens para a aplicação;
+- [ ] o modelo realiza as detecções e retorna bounding boxes;
+- [ ] o streaming exibe as detecções corretamente;
+- [ ] a comunicação serial entre Raspberry Pi e ESP32-S3 funciona;
+- [ ] as classes 1, 2 e 3 acionam os respectivos servos;
+- [ ] a classe 4 segue pela esteira sem acionamento de servo;
+- [ ] os sensores confirmam a entrada e a saída das peças;
+- [ ] o ciclo ponta a ponta ocorre conforme descrito;
+- [ ] os testes automatizados são concluídos sem falhas.
 ---
 
-## Passo 7: Troubleshooting
+## Passo 8: Troubleshooting
 
 ### Visão computacional
 
@@ -741,5 +758,3 @@ Distribuído sob os termos do arquivo [LICENSE](LICENSE).
 <p align="center">
   <sub>Projeto V.I.T.A. · Computação na Beirada · 2026</sub>
 </p>
-
-
