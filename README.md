@@ -465,7 +465,17 @@ ls -l /dev/ttyACM* /dev/ttyUSB* 2>/dev/null
 
 Se for diferente de `/dev/ttyACM0`, ajuste **os dois lugares** no `docker-compose.yml`: a variável `ESP32_SERIAL_PORT` e o mapeamento em `devices:`.
 
-### 4.5 Grafana Cloud (opcional)
+### 4.5 Descobrir o IP da Raspberry Pi
+
+Para acessar a API, o streaming ou outros serviços da Raspberry Pi a partir de outra máquina na mesma rede, descubra o endereço IP da RPi com:
+
+```bash
+hostname -I
+```
+
+Use o endereço IPv4 retornado no lugar de `<IP-DO-RPI>` nos endereços apresentados nas próximas seções.
+
+### 4.6 Grafana Cloud (opcional)
 
 Para habilitar o envio de logs, preencha `beirada_ia/app/.env.grafana`:
 
@@ -483,16 +493,6 @@ Depois, carregue o arquivo no serviço adicionando ao `yolo-api` no `docker-comp
 ```
 
 Sem essa configuração o sistema funciona normalmente - apenas não exporta logs para o dashboard.
-
-### 4.6 Descobrir o IP da Raspberry Pi
-
-Para acessar a API, o streaming ou outros serviços da Raspberry Pi a partir de outra máquina na mesma rede, descubra o endereço IP da RPi com:
-
-```bash
-hostname -I
-```
-
-Use o endereço IPv4 retornado no lugar de `<IP-DO-RPI>` nos endereços apresentados nas próximas seções.
 
 ---
 
