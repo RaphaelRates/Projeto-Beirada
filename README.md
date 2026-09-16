@@ -20,14 +20,14 @@
 7. [Protocolo de comunicação RPi ↔ ESP32](#7-protocolo-de-comunicação-rpi--esp32)
 
 **Parte II: Manual de replicação**
-- [Pré-requisitos](#pré-requisitos)
-- [Passo 1: Montagem física do hardware](#passo-1-montagem-física-do-hardware)
-- [Passo 2: Preparação do Raspberry Pi 5](#passo-2-preparação-do-raspberry-pi-5)
-- [Passo 3: Compilação e gravação do firmware](#passo-3-compilação-e-gravação-do-firmware-esp32-s3)
-- [Passo 4: Configuração do sistema](#passo-4-configuração-do-sistema)
-- [Passo 5: Execução](#passo-5-execução)
-- [Passo 6: Verificação do resultado](#passo-6-verificação-do-resultado)
-- [Passo 7: Troubleshooting](#passo-7-troubleshooting)
+8. [Pré-requisitos](#pré-requisitos)
+9. [Passo 1: Montagem física do hardware](#passo-1-montagem-física-do-hardware)
+10. [Passo 2: Preparação do Raspberry Pi 5](#passo-2-preparação-do-raspberry-pi-5)
+11. [Passo 3: Compilação e gravação do firmware](#passo-3-compilação-e-gravação-do-firmware-esp32-s3)
+12. [Passo 4: Configuração do sistema](#passo-4-configuração-do-sistema)
+13. [Passo 5: Execução](#passo-5-execução)
+14. [Passo 6: Verificação do resultado](#passo-6-verificação-do-resultado)
+15. [Passo 7: Troubleshooting](#passo-7-troubleshooting)
 
 ---
 
@@ -95,7 +95,15 @@ flowchart LR
 
 ### Fluxo de um ciclo completo
 
-**(TBD)**
+1. A câmera captura um frame da esteira.
+2. O `Preprocessor` aplica letterbox e redimensiona para 320 px (configurável).
+3. O YOLOv8n infere as bounding boxes e classes presentes.
+4. Detecções com confiança ≥ `CONFIDENCE` (padrão 0,70) viram um comando de classe.
+5. A classe é enviada como texto ASCII pela serial USB.
+6. A task UART do ESP32 lê a linha e chama `peca_para_fila()`.
+7. A fila FreeRTOS do servo correspondente recebe o item; a task do servo desperta.
+8. A task aguarda o **sensor de entrada** acusar a peça e então abre o servo.
+9. Ao **sensor de saída** confirmar a transferência, o servo volta à posição de repouso (90°).
 
 ---
 
@@ -149,7 +157,7 @@ Projeto-Beirada/
 │   ├── esquematicos/           # Arquivos-fonte (.fzz / .kicad_sch)
 │   └── imagens/                # Imagens e gifs do README
 │
-├── beirada_esp/                # ── FIRMWARE (ESP32-S3) ──
+├── beirada_esp/                # -- FIRMWARE (ESP32-S3) --
 │   └── ledc_basic/
 │       ├── CMakeLists.txt
 │       └── main/
@@ -158,7 +166,7 @@ Projeto-Beirada/
 │           ├── filas.c / filas.h           # Uma fila + uma task FreeRTOS por servo
 │           └── serial.c / serial.h         # Task UART: lê a classe vinda do RPi
 │
-└── beirada_ia/                 # ── VISÃO COMPUTACIONAL (RPi 5) ──
+└── beirada_ia/                 # -- VISÃO COMPUTACIONAL (RPi 5) --
     ├── Dockerfile.api
     ├── Dockerfile.client
     ├── ruff.toml
@@ -389,6 +397,12 @@ Substitua `/dev/ttyACM0` pela porta do seu sistema (no Linux costuma ser `/dev/t
 ---
 
 ## Passo 4: Configuração do sistema
+
+### Mapa de configuração do sistema
+
+A tabela abaixo apresenta as principais configurações do projeto, os valores utilizados na implementação e o local em que devem ser alteradas caso seja necessário adaptar o ambiente.
+
+(colocar tabela)
 
 ### 4.1 Clonar o repositório
 
