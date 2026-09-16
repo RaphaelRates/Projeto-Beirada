@@ -43,14 +43,15 @@ except Exception:
     pass
 
 
-iniciar(SERIAL_PORT, BAUD)
+if os.getenv("ENABLE_ESP32", "1") == "1":
+    iniciar(SERIAL_PORT, BAUD)
 
 INFERENCE_TIME = Gauge("yolo_inference_time_seconds","Tempo de inferência do YOLO em segundos (última execução)",)
 DETECTIONS_BY_CLASS_TOTAL = Counter("yolo_detections_by_class_total","Total cumulativo de objetos detectados pelo YOLO por classe",["class_name"],)
 DETECTIONS_COUNT_BY_CLASS = Gauge("yolo_detections_count_by_class","Quantidade de objetos da classe detectados na última inferência ""(zerado explicitamente quando a classe não aparece mais no frame)",["class_name"],)
 DETECTION_CLASS_PERCENTAGE = Gauge("yolo_detection_class_percentage","Percentual (0-100) que a classe representa do total de detecções ""monitoradas na última inferência", ["class_name"],)
 DETECTION_CONFIDENCE = Gauge("yolo_detection_confidence_last","Última confiança média observada por classe na última inferência",["class_name"],)
-DETECTION_CONFIDENCE_HISTOGRAM = Histogram( "yolo_detection_confidence","Distribuição de confiança das detecções por classe ""(use para média/percentis por classe ao longo do tempo no Grafana)",["class_name"],buckets=[0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.65, 0.7, 0.75, 0.8, 0.85, 0.9, 0.95, 1.0],)
+DETECTION_CONFIDENCE_HISTOGRAM = Histogram( "yolo_detection_confidence","Distribuição de confiança das detecções por classe ""(use para média/percentis por classe ao longo do tempo no Grafana)",["class_name"],buckets=[0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.70, 0.7, 0.75, 0.8, 0.85, 0.9, 0.95, 1.0],)
 STREAM_ACTIVE = Gauge("yolo_stream_active","1 se há um stream de câmera em andamento, 0 caso contrário",)
 STREAM_FPS = Gauge("yolo_stream_fps","Taxa de quadros por segundo entregues pelo stream (média móvel simples)",)
 _MONITORED_CLASSES = {"serrote","martelo","parafuso","estilete",}
@@ -143,6 +144,7 @@ def _publish_detection_metrics(model, results, logged_objects=None):
     """
     counts = {cls: 0 for cls in _MONITORED_CLASSES}
     confidence_sums = {cls: 0.0 for cls in _MONITORED_CLASSES}
+    detected_objects = []
 
     for r in results:
         for box in r.boxes:
@@ -173,6 +175,7 @@ def _publish_detection_metrics(model, results, logged_objects=None):
             if cls_name not in _MONITORED_CLASSES:
                 continue
 
+            detected_objects.append((cls_name, conf_val))
             counts[cls_name] += 1
             confidence_sums[cls_name] += conf_val
             DETECTIONS_BY_CLASS_TOTAL.labels(cls_name).inc()
@@ -180,7 +183,6 @@ def _publish_detection_metrics(model, results, logged_objects=None):
 
     total_monitored = sum(counts.values())
 
-    summary = []
     for cls_name, count in counts.items():
         DETECTIONS_COUNT_BY_CLASS.labels(cls_name).set(count)
 
@@ -190,11 +192,10 @@ def _publish_detection_metrics(model, results, logged_objects=None):
         avg_confidence = (confidence_sums[cls_name] / count) if count > 0 else 0.0
         DETECTION_CONFIDENCE.labels(cls_name).set(round(avg_confidence, 4))
 
-        if count > 0:
-            summary.append({"class": cls_name,"count": count,"percentage": round(percentage, 2),"avg_confidence": round(avg_confidence, 4),
-            })
-
-    return summary
+    return [
+        {"class": cls_name, "confidence": round(confidence, 4)}
+        for cls_name, confidence in detected_objects
+    ]
 
 
 def _run_inference(image_np: np.ndarray, model_name: str, confidence: float) -> PredictResponse:
@@ -425,7 +426,7 @@ def predict(request: PredictRequest):
 # @app.post("/predict/camera", response_model=PredictResponse)
 # def predict_from_camera(
 #     device_id: int = Query(0, description="Índice do dispositivo (/dev/videoX)"),
-#     confidence: float = Query(0.65, ge=0.0, le=1.0, description="Limiar de confiança"),
+#     confidence: float = Query(0.70, ge=0.0, le=1.0, description="Limiar de confiança"),
 #     model_name: str = Query("yolov8n.pt", description="Modelo YOLO a ser utilizado"),
 # ):
 #     """Captura uma foto pela câmera, executa inferência e retorna as detecções."""
@@ -469,7 +470,7 @@ def predict(request: PredictRequest):
 # @app.get("/predict/camera/image", responses={200: {"content": {"image/jpeg": {}}}})
 # def predict_from_camera_image(
 #     device_id: int = Query(0, description="Índice do dispositivo (/dev/videoX)"),
-#     confidence: float = Query(0.65, ge=0.0, le=1.0, description="Limiar de confiança"),
+#     confidence: float = Query(0.70, ge=0.0, le=1.0, description="Limiar de confiança"),
 #     model_name: str = Query("yolov8n.pt", description="Modelo YOLO a ser utilizado"),
 # ):
 #     """Captura imagem da câmera, executa inferência e retorna JPEG anotado."""
@@ -603,6 +604,8 @@ async def stream_camera(
     confidence: float = Query(0.70, ge=0.0, le=1.0),
     model_name: str = Query("yolov8n.pt"),
     framerate: int = Query(40, ge=1, le=60),
+    infer_every: int = Query(1, ge=1),
+    jpeg_quality: int = Query(70, ge=1, le=100),
 ):
     """Transmite vídeo contínuo da câmera com detecções YOLO em todo frame.
 
@@ -636,6 +639,7 @@ async def stream_camera(
             STREAM_ACTIVE.set(1)
             fps_last_ts = time.perf_counter()
             fps_smoothed = 0.0
+            frame_count = 0
 
             cmd = ["rpicam-vid","-t", "0","-n","--codec", "mjpeg","--quality", "80","--width", "1352","--height", "720","--framerate", str(framerate),"-o", "-",]
 
@@ -653,7 +657,7 @@ async def stream_camera(
 
                 try:
                     while True:
-                        chunk = await loop.run_in_executor(None, proc.stdout.read, 65536)
+                        chunk = await loop.run_in_executor(None, proc.stdout.read, 70536)
                         if not chunk:
                             break
 
@@ -714,8 +718,15 @@ async def stream_camera(
                         if frame is None:
                             continue
 
-                        frame = await loop.run_in_executor(None,run_inference,frame,)
-                        success, encoded = cv2.imencode(".jpg",frame,[cv2.IMWRITE_JPEG_QUALITY, 70],)
+                        frame_count += 1
+                        if frame_count % infer_every == 0:
+                            frame = await loop.run_in_executor(None, run_inference, frame)
+
+                        success, encoded = cv2.imencode(
+                            ".jpg",
+                            frame,
+                            [cv2.IMWRITE_JPEG_QUALITY, jpeg_quality],
+                        )
 
                         if not success:
                             continue

@@ -62,7 +62,7 @@ jobs:
         run: ruff check beirada_ia/app/
 
       - name: Testes automatizados
-        run: pytest tests/ -v --tb=short
+        run: pytest beirada_ia/tests/ -v --tb=short
 
   # ─────────────────────────────────────────────────────────
   # JOB 2: Build da imagem Docker ARM64
@@ -110,7 +110,7 @@ jobs:
         uses: docker/build-push-action@v5
         with:
           context: .
-          file: Dockerfile.api
+          file: beirada_ia/Dockerfile.api
           platforms: linux/arm64
           push: ${{ github.ref == 'refs/heads/main' }}
           tags: ${{ steps.meta.outputs.tags }}
