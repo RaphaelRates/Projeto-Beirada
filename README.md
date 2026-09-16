@@ -532,9 +532,9 @@ Depois de iniciar os serviços, os resultados da execução podem ser acompanhad
 ### 6.1 API de inferência
 
 > Para acessar a API, o streaming ou outros serviços da Raspberry Pi a partir de outra máquina na mesma rede, descubra o endereço IP da RPi com:
-```bash
-hostname -I
-```
+> ```bash
+> hostname -I
+> ```
 > Use o endereço IPv4 retornado no lugar de `<IP-DO-RPI>` nos endereços apresentados nas próximas seções.
 
 A API pode ser acessada pelo endereço:
