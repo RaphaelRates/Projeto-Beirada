@@ -153,13 +153,13 @@ jobs:
           dvc pull
 
       - name: Recuperar dataset via DVC
-        run: dvc pull dataset/beirada.v1-v1.dvc
+        run: dvc pull beirada_ia/dataset/beirada.v1-v1.dvc
 
       - name: Executar quality gate
         run: |
-          python scripts/validate_model.py \
-            --model models/yolov8n.pt \
-            --dataset dataset/beirada.v1-v1/data.yaml \
+          python beirada_ia/scripts/validate_model.py \
+            --model beirada_ia/models/yolov8n.pt \
+            --dataset beirada_ia/dataset/beirada.v1-v1/data.yaml \
             --threshold 0.60
 
   # ─────────────────────────────────────────────────────────
@@ -192,7 +192,7 @@ jobs:
             export DEPLOY_PATH=${{ secrets.RPI_DEPLOY_PATH }}
             cd "$DEPLOY_PATH"
             git pull origin main
-            bash scripts/deploy.sh
+            bash beirada_ia/scripts/deploy.sh
 
       - name: Notificar resultado
         if: always()
