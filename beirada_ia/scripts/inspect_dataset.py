@@ -1,7 +1,7 @@
 """
 scripts/inspect_dataset.py
 Valida a integridade e balanceamento de um dataset no formato YOLOv8.
-Uso: python scripts/inspect_dataset.py --dataset dataset/exports/epi-v1/data.yaml
+Uso: python scripts/inspect_dataset.py --dataset beirada_ia/dataset/beirada-v1/data.yaml
 """
 import argparse
 import sys

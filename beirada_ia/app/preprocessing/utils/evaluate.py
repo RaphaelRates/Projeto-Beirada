@@ -22,8 +22,8 @@ def _patched_torch_load(*args, **kwargs):
 torch.load = _patched_torch_load
 
 
-DATASET_YAML = "dataset/exports/epi-v1/data.yaml"
-MODEL_PATH   = "models/yolov8n_v4_v3_v3.pt"
+DATASET_YAML = "beirada_ia/dataset/beirada-v1/data.yaml"
+MODEL_PATH   = "beirada_ia/models/yolov8n.pt"
 
 def evaluate_pipeline(
     preprocess_fn: Callable | None = None,
