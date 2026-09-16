@@ -491,9 +491,46 @@ hostname -I
 
 Use o endereço IPv4 retornado no lugar de `<IP-DO-RPI>` nos endereços apresentados nas próximas seções.
 
-### 4.6 Grafana Cloud (opcional)
+### 4.6 Configurar o Grafana Cloud
 
-Para habilitar o envio de logs, preencha `beirada_ia/app/.env.grafana`:
+O Grafana Cloud é utilizado para receber e visualizar os logs enviados pela aplicação. Essa etapa é necessária apenas para habilitar o monitoramento remoto por meio do Grafana; a aplicação pode ser executada sem essa integração.
+
+#### 4.6.1 Criar uma conta no Grafana Cloud
+
+Caso ainda não possua uma conta, crie uma conta no **Grafana Cloud** e acesse o **Cloud Portal**. Depois de entrar, abra a sua **stack** do Grafana. É nessa stack que ficam as informações de conexão do Loki utilizadas pelo projeto.
+
+#### 4.6.2 Obter as informações de conexão do Loki
+
+Para configurar o envio de logs, são necessárias três informações: a **URL do Loki**, o **User ID (Instance ID)** da instância de logs e um **token de acesso** com permissão para escrever logs.
+
+No **Cloud Portal**, localize a sua stack e abra os detalhes do serviço **Loki**. Na seção relacionada ao envio de logs para o Grafana Cloud, o serviço apresenta a **URL** e o **User ID** que devem ser utilizados na autenticação. A documentação do Grafana indica que essas informações podem ser obtidas pelos detalhes da instância do Loki.
+
+Para criar o token:
+
+1. No Grafana Cloud, abra **Security → Access Policies**.
+2. Clique em **Create access policy**.
+3. Dê um nome para a política, por exemplo `vita-logs`.
+4. Conceda à política a permissão **Logs: Write (`logs:write`)**, que é a permissão necessária para enviar registros para o Loki.
+5. Crie a política e, em seguida, selecione **Add token** para gerar um token associado a ela.
+6. Copie o token imediatamente e guarde-o em local seguro. O valor completo do token é apresentado no momento da criação e deve ser tratado como uma credencial.
+
+Para o endpoint utilizado pelo projeto, o endereço deve apontar para o endpoint de ingestão do Loki, normalmente no formato:
+
+```text
+https://logs-prod-<REGIAO>.grafana.net/loki/api/v1/push
+```
+
+O caminho `/loki/api/v1/push` é o endpoint utilizado pelo Loki para receber registros.
+
+#### 4.6.3 Configurar as credenciais
+
+Depois de obter essas três informações, crie ou edite o arquivo:
+
+```text
+beirada_ia/app/.env.grafana
+```
+
+Preencha-o com os valores correspondentes à sua instância:
 
 ```bash
 GRAFANA_CLOUD_ENDPOINT="https://logs-prod-<REGIAO>.grafana.net/loki/api/v1/push"
@@ -501,14 +538,35 @@ GRAFANA_CLOUD_USERNAME="<seu-user-id>"
 GRAFANA_CLOUD_TOKEN="<seu-token>"
 ```
 
-Depois, carregue o arquivo no serviço adicionando ao `yolo-api` no `docker-compose.yml`:
+Substitua:
+
+- `<REGIAO>` pela região indicada na URL fornecida pelo Grafana Cloud;
+- `<seu-user-id>` pelo **User ID/Instance ID do Loki** obtido nos detalhes da sua stack;
+- `<seu-token>` pelo token criado na **Access Policy** com `logs:write`.
+
+#### 4.6.3 Disponibilizar as variáveis para a API
+
+Criar o arquivo `.env.grafana` não faz, por si só, com que as variáveis sejam disponibilizadas dentro do contêiner. É necessário informar ao Docker Compose que o serviço `yolo-api` deve carregar esse arquivo como fonte de variáveis de ambiente.
+
+No `docker-compose.yml`, dentro da configuração do serviço `yolo-api`, adicione:
 
 ```yaml
     env_file:
       - ./beirada_ia/app/.env.grafana
 ```
 
-Sem essa configuração o sistema funciona normalmente - apenas não exporta logs para o dashboard.
+O caminho é relativo à localização do `docker-compose.yml`. Assim, o Docker Compose lê o arquivo `beirada_ia/app/.env.grafana` durante a criação do contêiner e disponibiliza `GRAFANA_CLOUD_ENDPOINT`, `GRAFANA_CLOUD_USERNAME` e `GRAFANA_CLOUD_TOKEN` para a aplicação.
+
+Depois de alterar o `docker-compose.yml`, recrie os contêineres para que a nova configuração seja aplicada:
+
+```bash
+docker compose down
+docker compose up -d --build
+```
+
+A partir desse momento, o `yolo-api` poderá utilizar as credenciais para enviar os logs ao Grafana Cloud.
+
+Se essa integração não for configurada, o sistema continua funcionando localmente, mas os logs não serão exportados para o dashboard do Grafana Cloud.
 
 ---
 
