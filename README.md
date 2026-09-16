@@ -638,8 +638,11 @@ Confirme visualmente que:
 - as **bounding boxes** estão posicionadas sobre as peças correspondentes;
 - o rótulo exibido corresponde à classe identificada.
 
-> **[IMAGEM: RESULTADO DA DETECÇÃO]**
-> Adicionar: captura do streaming em funcionamento, com pelo menos uma peça identificada e suas bounding boxes e classes visíveis.
+<p align="center">
+    <img src="docs/imagens/gif-deteccao.gif"
+        alt="Detecção de classe"
+        width="700">
+</p>
 
 ### 7.4 Comunicação e atuação do ESP32-S3
 
