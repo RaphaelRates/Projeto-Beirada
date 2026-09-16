@@ -357,12 +357,25 @@ sudo usermod -aG docker $USER
 
 Faça **logout e login novamente** para que a mudança de grupo tenha efeito.
 
-### 2.4 Instalar Git e DVC
+### 2.4 Instalar Git, OpenSSH e DVC
+
+O DVC utiliza SSH quando o armazenamento remoto dos artefatos é um servidor acessível por SSH. Por isso, além do Git e do DVC, instale o cliente OpenSSH e o suporte SSH do DVC:
 
 ```bash
-sudo apt update && sudo apt install -y git python3-pip
-pip install dvc --break-system-packages
+sudo apt update
+sudo apt install -y git python3-pip openssh-client
+pip install "dvc[ssh]" --break-system-packages
 ```
+
+Confirme as instalações:
+
+```bash
+git --version
+ssh -V
+dvc --version
+```
+
+> O pacote `dvc[ssh]` inclui as dependências necessárias para utilizar remotes DVC via SSH.
 
 ### 2.5 Criar o ambiente virtual e instalar as dependências Python
 
