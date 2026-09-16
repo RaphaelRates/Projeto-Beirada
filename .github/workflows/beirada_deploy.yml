@@ -153,13 +153,13 @@ jobs:
           dvc pull
 
       - name: Recuperar dataset via DVC
-        run: dvc pull dataset/exports/epi-v1
+        run: dvc pull dataset/beirada.v1-v1
 
       - name: Executar quality gate
         run: |
           python scripts/validate_model.py \
-            --model models/yolo-epi.pt \
-            --dataset dataset/exports/epi-v1/data.yaml \
+            --model models/yolov8n.pt \
+            --dataset dataset/beirada.v1-v1/data.yaml \
             --threshold 0.60
 
   # ─────────────────────────────────────────────────────────
