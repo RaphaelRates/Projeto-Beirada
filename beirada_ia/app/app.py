@@ -161,13 +161,13 @@ def _publish_detection_metrics(model, results, logged_objects=None):
             if should_log:
                 match cls_name:
                     case "martelo":
-                        enviar("1\n")
+                        enviar("1")
                     case "parafuso":
-                        enviar("2\n")
+                        enviar("3")
                     case "estilete":
-                        enviar("3\n")
+                        enviar("2")
                     case "serrote":
-                        enviar("4\n")
+                        enviar("4")
                 log_event("object_detected",class_name=cls_name,confidence=round(conf_val, 4),track_id=track_id,)
                 if logged_objects is not None and track_id is not None:
                     logged_objects.add(object_key)
