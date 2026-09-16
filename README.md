@@ -9,12 +9,25 @@
 ---
 
 ## Sumário
+
+**Parte I — Entendimento da solução**
 1. [Visão Geral](#1-visão-geral)
 2. [Diagrama de Arquitetura](#2-diagrama-de-arquitetura)
 3. [Esquemático elétrico](#3-esquemático-elétrico)
 4. [Tabela de pinagem](#4-tabela-de-pinagem)
 5. [Componentes da Solução](#5-componentes-da-solução)
 6. [Estrutura das Pastas](#6-estrutura-das-pastas)
+7. [Protocolo de comunicação RPi ↔ ESP32](#7-protocolo-de-comunicação-rpi--esp32)
+
+**Parte II — Manual de replicação**
+- [Pré-requisitos](#pré-requisitos)
+- [Passo 1: Montagem física do hardware](#passo-1:-montagem-física-do-hardware)
+- [Passo 2: Preparação do Raspberry Pi 5](#passo-2:-preparação-do-raspberry-pi-5)
+- [Passo 3: Compilação e gravação do firmware](#passo-3:-compilação-e-gravação-do-firmware-esp32-s3)
+- [Passo 4: Configuração do sistema](#passo-4:-configuração-do-sistema)
+- [Passo 5: Execução](#passo-5:-execução)
+- [Passo 6: Verificação do resultado](#passo-6:-verificação-do-resultado)
+- [Passo 7: Troubleshooting](#passo-7:-troubleshooting)
 
 ---
 
@@ -182,6 +195,51 @@ Projeto-Beirada/
 
 ---
 
+## 7. Protocolo de comunicação RPi ↔ ESP32
+
+Enlace cabeado, sem dependência de rede sem fio.
+
+| Parâmetro | Valor |
+|---|---|
+| Meio físico | USB CDC (UART0 do ESP32-S3) |
+| Dispositivo no RPi | `/dev/ttyACM0` |
+| Baud rate | 115200 |
+| Formato | 8 bits de dados, sem paridade, 1 stop bit (8N1) |
+| Controle de fluxo | Desabilitado |
+
+### Formato da mensagem
+
+Texto ASCII, um comando por linha, terminado em `\n` ou `\r`:
+
+```
+<classe>\n
+```
+
+Onde `<classe>` é um inteiro de **1 a 3** (limite atual `SERVO_MAX_COUNT`), mapeado para o servo `classe - 1`.
+
+| Enviado pelo RPi | Ação no ESP32 |
+|---|---|
+| `1\n` | Enfileira peça para o servo 1 |
+| `2\n` | Enfileira peça para o servo 2 |
+| `3\n` | Enfileira peça para o servo 3 |
+| Valor fora de 1–3 | Descartado, com log `Classe inválida recebida` |
+
+O parser em `serial.c` ignora qualquer caractere que não seja dígito, então ruído na linha não corrompe o comando. Cada fila comporta até 10 itens pendentes; ao encher, a peça é descartada com log de erro.
+
+### Testando o protocolo manualmente
+
+Sem nenhum código Python, direto do terminal do Raspberry Pi:
+
+```bash
+# Envia a classe 1 para o ESP32
+echo "1" > /dev/ttyACM0
+
+# Em outro terminal, observe a resposta do firmware
+screen /dev/ttyACM0 115200      # sair: Ctrl+A depois K
+```
+
+---
+
 # PARTE 2: MANUAL DE REPLICAÇÃO
 
 ## Pré-requisitos
@@ -204,7 +262,7 @@ Projeto-Beirada/
 
 | Ferramenta | Versão mínima | Função |
 |---|---|---|
-| Raspberry Pi OS (64-bit, Bookworm) | — | Sistema operacional |
+| Raspberry Pi OS (64-bit, Bookworm) | - | Sistema operacional |
 | Docker Engine | 24.x | Executar os serviços |
 | Docker Compose | v2 | Orquestração |
 | Git | 2.x | Clonar o repositório |
@@ -235,7 +293,7 @@ Projeto-Beirada/
 
 Para cada servo, siga a tabela de pinagem da [seção 4](#4-tabela-de-pinagem):
 
-- Fio **vermelho** → trilho 5 V da protoboard 1
+- Fio **vermelho** → trilho 5 V da protoboard
 - Fio **marrom/preto** → trilho GND
 - Fio **laranja/amarelo** → GPIO correspondente do ESP32-S3
 
@@ -253,7 +311,7 @@ Para cada servo, siga a tabela de pinagem da [seção 4](#4-tabela-de-pinagem):
 
 Cada E18-D80NK tem três fios:
 
-- **Marrom** → 5 V (protoboard 2)
+- **Marrom** → 5 V (protoboard)
 - **Azul** → GND
 - **Preto** (sinal OUT) → GPIO do ESP32-S3, conforme a tabela de pinagem
 
@@ -559,7 +617,6 @@ docker compose exec yolo-api python -m pytest tests/ -v
 | `model_loaded: false` no `/health` | Arquivo `.pt` ausente ou caminho errado | Confira `ls beirada_ia/models/*.pt` e ajuste `MODEL_PATH` |
 | Stream preto ou `Camera not found` | Câmera não detectada pelo contêiner | Teste `rpicam-hello` no host; confirme que `/dev` está montado no compose |
 | Latência acima de 100 ms | Resolução de inferência alta demais | Reduza `--infer-size` para 256 e/ou aumente `--infer-every` para 5 |
-| Build do Docker falha ao compilar | Falta de memória durante o build | Aumente o swap: `sudo dphys-swapfile swapoff && sudo nano /etc/dphys-swapfile` |
 | Nenhuma detecção aparece | Limiar muito alto ou modelo não treinado nas suas peças | Baixe `CONFIDENCE` para 0.4 e verifique se o modelo tem as classes certas |
 
 ### Comunicação serial
@@ -568,7 +625,6 @@ docker compose exec yolo-api python -m pytest tests/ -v
 |---|---|---|
 | `Permission denied` em `/dev/ttyACM0` | Usuário fora do grupo `dialout` | `sudo usermod -aG dialout $USER` e relogar |
 | Porta não aparece | Cabo USB só de carga | Troque por um cabo de dados |
-| Comandos enviados, sem reação no ESP32 | Baud rate divergente | Confirme 115200 nos dois lados |
 | Contêiner não enxerga a porta | Mapeamento de device ausente | Verifique a seção `devices:` no `docker-compose.yml` |
 | Caracteres truncados no monitor | Monitor do IDF e outro programa disputando a porta | Feche um dos dois; só um processo pode abrir a porta |
 
@@ -576,52 +632,10 @@ docker compose exec yolo-api python -m pytest tests/ -v
 
 | Sintoma | Causa provável | Solução |
 |---|---|---|
-| ESP32 reinicia ao mover servo | Servos alimentados pela placa | Use fonte externa de 5 V / ≥ 3 A ([seção 3](#3-esquemático-elétrico)) |
-| Servo treme ou não para de vibrar | Alimentação insuficiente ou sinal PWM ruidoso | Reforce a fonte; encurte o fio de sinal; verifique o terra comum |
 | Servo não se move | GND não comum, GPIO errado ou servo queimado | Verifique continuidade de GND; confira `servo.h`; teste o servo isolado |
 | Sensor sempre acusa presença | Saída invertida ou pull-up ausente | O firmware espera LOW = detectado; verifique se o sensor é NPN-NO |
 | Sensor nunca acusa presença | Distância de detecção desajustada | Ajuste o potenciômetro do E18-D80NK (alcance 3–80 cm) |
-| Falha de boot após gravar | `SERVO3_GPIO = 26` conflitando com PSRAM | Migre para GPIO 8 ([seção 4](#4-tabela-de-pinagem)) |
 | `Fila do Servo N cheia! Peça descartada` | Comandos chegando mais rápido que as peças | Aumente `ESP32_MIN_INTERVAL_S`; verifique se os sensores estão respondendo |
-
----
-
-## Passo 8: Calibração e ajustes
-
-### 8.1 Limiar de confiança
-
-Controlado por `CONFIDENCE` no `docker-compose.yml`:
-
-- **Valor alto (0,80+):** menos falsos positivos, mas peças podem passar sem ser classificadas.
-- **Valor baixo (0,50):** captura mais peças, ao custo de classificações erradas.
-- **Recomendado:** comece em 0,70, observe o stream por alguns minutos e ajuste.
-
-### 8.2 Ângulos dos servos
-
-Definidos em `servo.c`, função `servo_abrir()`:
-
-```c
-void servo_abrir(servo_id_t id)
-{
-    if (id == servo2) {
-        servo_angulo(id, 50);    // servo 2 é espelhado (lado oposto da esteira)
-    } else {
-        servo_angulo(id, 150);
-    }
-}
-```
-
-Ajuste esses valores conforme a geometria da sua esteira. A posição de repouso (90°, em `servo_desativar()`) deve deixar o braço paralelo à esteira, sem obstruir a passagem.
-
-### 8.3 Desempenho do streaming
-
-No comando do serviço `yolo-stream` no `docker-compose.yml`:
-
-| Parâmetro | Padrão | Efeito |
-|---|---|---|
-| `--infer-size` | 300 | Resolução de inferência. Menor - mais rápido, menos preciso |
-| `--infer-every` | 3 | Infere a cada N frames. Maior - menos carga, mais latência de reação |
-| `--device` | 0 | Índice da câmera |
 
 ---
 
