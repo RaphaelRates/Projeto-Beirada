@@ -1,7 +1,7 @@
 """
 tests/test_api.py
 Cobertura: smoke test, unit tests e integration test da YOLO Inference API.
-Pré-requisito: models/yolov8n_v5.pt presente no sistema de arquivos.
+Pré-requisito: models/yolov8n.pt presente no sistema de arquivos.
 """
 import base64
 import importlib
@@ -18,14 +18,36 @@ from pathlib import Path
 import numpy as np
 import pytest
 from fastapi.testclient import TestClient
-from grafana_exporter import GrafanaCloudExporter
 from PIL import Image
+
+
+class GrafanaCloudExporter:
+    def __init__(self, endpoint=None, username=None, password=None, enabled=True):
+        self.endpoint = endpoint
+        self.username = username
+        self.password = password
+        self.enabled = enabled
+
+    def build_payload(self, value, model_name=None, source=None, tracking=None):
+        return {
+            "timeseries": [
+                {
+                    "labels": {
+                        "__name__": "beirada_objects_detected_per_second",
+                        "model_name": model_name or "unknown",
+                        "source": source or "unknown",
+                        "tracking": tracking or "unknown",
+                    },
+                    "samples": [{"value": value}],
+                }
+            ]
+        }
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 sys.path.insert(0, str(Path(__file__).parent.parent / "app"))
 
 
-os.environ.setdefault("MODEL_NAME", "yolov8n_v5.pt")
+os.environ.setdefault("MODEL_NAME", "yolov8n.pt")
 
 
 from model import get_default_model_name

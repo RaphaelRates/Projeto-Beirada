@@ -42,7 +42,7 @@ def _tentar_conectar():
 
         time.sleep(2)   # aguarda ESP32 bootar após abrir a porta
         print(f"[ESP32] Conectado em {_porta} @ {_baud}")
-        enviar("conectado")
+        enviar("80")
         return True
     except (serial.SerialException, OSError) as e:
         with _lock:
