@@ -5,6 +5,7 @@ import io
 import json
 import os
 import subprocess
+import threading
 import time
 import uuid
 from pathlib import Path
@@ -12,6 +13,7 @@ from pathlib import Path
 import cv2
 import httpx
 import numpy as np
+import serial
 from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.responses import HTMLResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
@@ -27,8 +29,6 @@ from schemas import (
     PredictRequest,
     PredictResponse,
 )
-import threading
-import serial
 
 BASE_DIR = Path(__file__).resolve().parent
 templates = Jinja2Templates(directory=str(BASE_DIR / "templates"))
@@ -263,8 +263,6 @@ def _publish_detection_metrics(model, results, logged_objects=None):
 
         percentage = (count / total_monitored * 100) if total_monitored > 0 else 0.0
         DETECTION_CLASS_PERCENTAGE.labels(cls_name).set(round(percentage, 2))
-
-        avg_confidence = (confidence_sums[cls_name] / count) if count > 0 else 0.0
 
     return [
         {"class": cls_name, "confidence": round(confidence, 4)}

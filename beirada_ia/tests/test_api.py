@@ -12,14 +12,12 @@ import os
 
 # Ajusta o PYTHONPATH: raiz do projeto (para "app" ser pacote) e app/ (para os imports internos de main.py, como "from schemas import ...")
 import sys
-import threading
 from pathlib import Path
 from typing import ClassVar
 
 import numpy as np
-import pytest
 from fastapi.testclient import TestClient
-from PIL import Image, UnidentifiedImageError
+from PIL import Image
 
 
 class GrafanaCloudExporter:
