@@ -550,9 +550,45 @@ docker compose exec yolo-api python -m pytest tests/ -v
 
 ---
 
-## Passo 7: Calibração e ajustes
+## Passo 7: Troubleshooting
 
-### 7.1 Limiar de confiança
+### Visão computacional
+
+| Sintoma | Causa provável | Solução |
+|---|---|---|
+| `model_loaded: false` no `/health` | Arquivo `.pt` ausente ou caminho errado | Confira `ls beirada_ia/models/*.pt` e ajuste `MODEL_PATH` |
+| Stream preto ou `Camera not found` | Câmera não detectada pelo contêiner | Teste `rpicam-hello` no host; confirme que `/dev` está montado no compose |
+| Latência acima de 100 ms | Resolução de inferência alta demais | Reduza `--infer-size` para 256 e/ou aumente `--infer-every` para 5 |
+| Build do Docker falha ao compilar | Falta de memória durante o build | Aumente o swap: `sudo dphys-swapfile swapoff && sudo nano /etc/dphys-swapfile` |
+| Nenhuma detecção aparece | Limiar muito alto ou modelo não treinado nas suas peças | Baixe `CONFIDENCE` para 0.4 e verifique se o modelo tem as classes certas |
+
+### Comunicação serial
+
+| Sintoma | Causa provável | Solução |
+|---|---|---|
+| `Permission denied` em `/dev/ttyACM0` | Usuário fora do grupo `dialout` | `sudo usermod -aG dialout $USER` e relogar |
+| Porta não aparece | Cabo USB só de carga | Troque por um cabo de dados |
+| Comandos enviados, sem reação no ESP32 | Baud rate divergente | Confirme 115200 nos dois lados |
+| Contêiner não enxerga a porta | Mapeamento de device ausente | Verifique a seção `devices:` no `docker-compose.yml` |
+| Caracteres truncados no monitor | Monitor do IDF e outro programa disputando a porta | Feche um dos dois; só um processo pode abrir a porta |
+
+### Hardware e atuação
+
+| Sintoma | Causa provável | Solução |
+|---|---|---|
+| ESP32 reinicia ao mover servo | Servos alimentados pela placa | Use fonte externa de 5 V / ≥ 3 A ([seção 3](#3-esquemático-elétrico)) |
+| Servo treme ou não para de vibrar | Alimentação insuficiente ou sinal PWM ruidoso | Reforce a fonte; encurte o fio de sinal; verifique o terra comum |
+| Servo não se move | GND não comum, GPIO errado ou servo queimado | Verifique continuidade de GND; confira `servo.h`; teste o servo isolado |
+| Sensor sempre acusa presença | Saída invertida ou pull-up ausente | O firmware espera LOW = detectado; verifique se o sensor é NPN-NO |
+| Sensor nunca acusa presença | Distância de detecção desajustada | Ajuste o potenciômetro do E18-D80NK (alcance 3–80 cm) |
+| Falha de boot após gravar | `SERVO3_GPIO = 26` conflitando com PSRAM | Migre para GPIO 8 ([seção 4](#4-tabela-de-pinagem)) |
+| `Fila do Servo N cheia! Peça descartada` | Comandos chegando mais rápido que as peças | Aumente `ESP32_MIN_INTERVAL_S`; verifique se os sensores estão respondendo |
+
+---
+
+## Passo 8: Calibração e ajustes
+
+### 8.1 Limiar de confiança
 
 Controlado por `CONFIDENCE` no `docker-compose.yml`:
 
@@ -560,7 +596,7 @@ Controlado por `CONFIDENCE` no `docker-compose.yml`:
 - **Valor baixo (0,50):** captura mais peças, ao custo de classificações erradas.
 - **Recomendado:** comece em 0,70, observe o stream por alguns minutos e ajuste.
 
-### 7.2 Ângulos dos servos
+### 8.2 Ângulos dos servos
 
 Definidos em `servo.c`, função `servo_abrir()`:
 
@@ -577,7 +613,7 @@ void servo_abrir(servo_id_t id)
 
 Ajuste esses valores conforme a geometria da sua esteira. A posição de repouso (90°, em `servo_desativar()`) deve deixar o braço paralelo à esteira, sem obstruir a passagem.
 
-### 7.3 Desempenho do streaming
+### 8.3 Desempenho do streaming
 
 No comando do serviço `yolo-stream` no `docker-compose.yml`:
 
