@@ -1,23 +1,74 @@
-# Pesos do modelo (gerenciados pelo DVC)
-# models/*.pt
-models/*.onnx
-
-
-# Outputs de inferência
-output/
-
-
-# Python
+# --- Python ---
 __pycache__/
-*.pyc
-.pytest_cache/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# --- Ambientes Virtuais ---
 .venv/
-
-
-# Imagens de teste grandes
-images/
-
-
-# Variáveis de ambiente locais
+venv/
+env/
+ENV/
 .env
-.dvc
+.env.*
+
+# --- Testes e Cobertura ---
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+.tox/
+.nox/
+.hypothesis/
+
+# --- Machine Learning / DVC / Dados ---
+# Ignora os pesos dos modelos (eles devem ser rastreados pelo DVC)
+*.pt
+*.pth
+*.onnx
+*.h5
+*.pkl
+*.joblib
+
+# Ignora o conteúdo do dataset (o DVC deve cuidar disso)
+dataset/
+!dataset/.gitkeep
+
+# Ignora checkpoints do Jupyter (se houver)
+.ipynb_checkpoints/
+
+# --- Logs e Temporários ---
+*.log
+logs/
+tmp/
+temp/
+
+# --- IDEs e Editores ---
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.clangd  # Opcional: remova se quiser compartilhar as configurações do clangd
+
+# --- Sistema Operacional ---
+.DS_Store
+Thumbs.db
