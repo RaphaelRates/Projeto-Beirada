@@ -18,17 +18,18 @@
 5. [Componentes da Solução](#5-componentes-da-solução)
 6. [Estrutura das Pastas](#6-estrutura-das-pastas)
 7. [Protocolo de comunicação RPi ↔ ESP32](#7-protocolo-de-comunicação-rpi--esp32)
+8. [Dependências](#8-dependências)
 
 **Parte II: Manual de replicação**
 
-8. [Pré-requisitos](#pré-requisitos)
-9. [Passo 1: Montagem física do hardware](#passo-1-montagem-física-do-hardware)
-10. [Passo 2: Preparação do Raspberry Pi 5](#passo-2-preparação-do-raspberry-pi-5)
-11. [Passo 3: Compilação e gravação do firmware](#passo-3-compilação-e-gravação-do-firmware-esp32-s3)
-12. [Passo 4: Configuração do sistema](#passo-4-configuração-do-sistema)
-13. [Passo 5: Execução](#passo-5-execução)
-14. [Passo 7: Verificação do resultado](#passo-7-verificação-do-resultado)
-15. [Passo 8: Troubleshooting](#passo-8-troubleshooting)
+- [Pré-requisitos](#pré-requisitos)
+- [Passo 1: Montagem física do hardware](#passo-1-montagem-física-do-hardware)
+- [Passo 2: Preparação do Raspberry Pi 5](#passo-2-preparação-do-raspberry-pi-5)
+- [Passo 3: Compilação e gravação do firmware](#passo-3-compilação-e-gravação-do-firmware-esp32-s3)
+- [Passo 4: Configuração do sistema](#passo-4-configuração-do-sistema)
+- [Passo 5: Execução](#passo-5-execução)
+- [Passo 6: Verificação do resultado](#passo-6-verificação-do-resultado)
+- [Passo 7: Troubleshooting](#passo-7-troubleshooting)
 
 ---
 
@@ -133,7 +134,7 @@ flowchart LR
 ### Software
 | Camada | Tecnologia | Versão | Função |
 |---|---|---|---|
-| Modelo de IA | yolo-epi (Ultralytics) | 8.2.0 | Detecção e classificação das peças em tempo real |
+| Modelo de IA | Ultralytics YOLOv8n | 8.2.0 | Detecção e classificação das peças em tempo real |
 | API de inferência | FastAPI + Uvicorn | 0.111.0 / 0.29.0 | Expõe `/predict`, `/predict/image`, `/predict/batch`, `/health`, `/metrics` |
 | Streaming | Flask | 3.1.3 | Servidor MJPEG com detecções sobrepostas (`stream/mjpeg_server.py`) |
 | Pré-processamento | OpenCV + Pillow + NumPy | 4.9.0.80 / 11.0.0 / 1.26.4 | Letterbox, resize e filtros de imagem antes da inferência |
@@ -248,6 +249,50 @@ screen /dev/ttyACM0 115200      # sair: Ctrl+A depois K
 
 ---
 
+---
+
+## 8. Dependências
+
+Lista exata dos pacotes usados pelo projeto — útil para auditoria ou para reproduzir o ambiente fora do Docker. Para o que precisa estar instalado no sistema operacional antes de começar, veja [Pré-requisitos](#pré-requisitos).
+
+### Python — API e streaming (`beirada_ia/app/requirements.txt`)
+
+```
+fastapi==0.111.0
+uvicorn[standard]==0.29.0
+ultralytics==8.2.0
+Pillow==11.0.0
+numpy==1.26.4
+httpx==0.27.0
+opencv-python-headless==4.9.0.80
+flask==3.1.3
+pyserial==3.5.0
+```
+
+### Python — cliente de teste (`beirada_ia/client/requirements.txt`)
+
+```
+httpx==0.27.0
+Pillow==10.3.0
+```
+
+### Firmware — ESP32-S3
+
+- **ESP-IDF** ≥ 5.0 (framework oficial Espressif)
+- **FreeRTOS** — já incluso no ESP-IDF
+- Driver **LEDC** — controle de PWM dos servomotores (parte do ESP-IDF, sem instalação extra)
+
+### Ferramentas externas
+
+| Ferramenta | Onde é usada | Instalação |
+|---|---|---|
+| Docker + Docker Compose | Orquestra `yolo-api`, `yolo-stream`, `yolo-client` | [Passo 2.3](#23-instalar-docker-e-docker-compose) |
+| DVC | Versiona os pesos do modelo (`.pt`) fora do Git | [Passo 2.4](#24-instalar-git-openssh-e-dvc) |
+| rpicam-apps | Captura via câmera CSI na Raspberry Pi | Já vem no Raspberry Pi OS |
+| ESP-IDF | Compila e grava o firmware do ESP32-S3 | [Passo 3.1](#31-instalar-o-esp-idf) |
+
+> As dependências Python de dentro dos contêineres Docker (`yolo-api`, `yolo-stream`) são instaladas automaticamente pelo `Dockerfile.api` durante o `docker compose up --build` — a lista acima é só para quem for rodar fora do Docker ou auditar versões.
+
 # PARTE 2: MANUAL DE REPLICAÇÃO
 
 ## Pré-requisitos
@@ -293,8 +338,8 @@ screen /dev/ttyACM0 115200      # sair: Ctrl+A depois K
 
 ### 1.1 Preparar os barramentos de energia
 
-1. Na **protoboard**, conecte a fonte externa de 5 V aos trilhos de alimentação. Faça o mesmo para os sensores.
-2. **Interligue o trilho GND das duas protoboards ao GND do ESP32-S3.** Sem esse terra comum nada funciona corretamente.
+1. Na **protoboard**, conecte a fonte externa de 5 V aos trilhos de alimentação. Faça o mesmo para os sensores, usando a mesma protoboard.
+2. **Interligue o trilho GND da protoboard ao GND do ESP32-S3.** Sem esse terra comum nada funciona corretamente.
 
 ### 1.2 Conectar os servomotores
 
@@ -504,46 +549,18 @@ hostname -I
 
 Use o endereço IPv4 retornado no lugar de `<IP-DO-RPI>` nos endereços apresentados nas próximas seções.
 
-### 4.6 Configurar o Grafana Cloud
+### 4.6 Configurar o Grafana Cloud (opcional)
 
-O Grafana Cloud é utilizado para receber e visualizar os logs enviados pela aplicação. Essa etapa é necessária apenas para habilitar o monitoramento remoto por meio do Grafana; a aplicação pode ser executada sem essa integração.
+Usado para visualizar os logs da aplicação remotamente. O sistema funciona normalmente sem essa integração — pule esta seção se não for usá-la.
 
-#### 4.6.1 Criar uma conta no Grafana Cloud
+**1. Obtenha as credenciais do Loki.** No [Grafana Cloud](https://grafana.com), abra sua stack → serviço **Loki** → copie a **URL de ingestão** e o **User ID (Instance ID)**. Depois, em **Security → Access Policies → Create access policy**, crie uma política com permissão **Logs: Write**, gere um token e copie-o (ele só aparece uma vez).
 
-Caso ainda não possua uma conta, crie uma conta no **Grafana Cloud** e acesse o **Cloud Portal**. Depois de entrar, abra a sua **stack** do Grafana. É nessa stack que ficam as informações de conexão do Loki utilizadas pelo projeto.
-
-#### 4.6.2 Obter as informações de conexão do Loki
-
-Para configurar o envio de logs, são necessárias três informações: a **URL do Loki**, o **User ID (Instance ID)** da instância de logs e um **token de acesso** com permissão para escrever logs.
-
-No **Cloud Portal**, localize a sua stack e abra os detalhes do serviço **Loki**. Na seção relacionada ao envio de logs para o Grafana Cloud, o serviço apresenta a **URL** e o **User ID** que devem ser utilizados na autenticação. A documentação do Grafana indica que essas informações podem ser obtidas pelos detalhes da instância do Loki.
-
-Para criar o token:
-
-1. No Grafana Cloud, abra **Security → Access Policies**.
-2. Clique em **Create access policy**.
-3. Dê um nome para a política, por exemplo `vita-logs`.
-4. Conceda à política a permissão **Logs: Write (`logs:write`)**, que é a permissão necessária para enviar registros para o Loki.
-5. Crie a política e, em seguida, selecione **Add token** para gerar um token associado a ela.
-6. Copie o token imediatamente e guarde-o em local seguro. O valor completo do token é apresentado no momento da criação e deve ser tratado como uma credencial.
-
-Para o endpoint utilizado pelo projeto, o endereço deve apontar para o endpoint de ingestão do Loki, normalmente no formato:
-
+A URL segue o formato:
 ```text
 https://logs-prod-<REGIAO>.grafana.net/loki/api/v1/push
 ```
 
-O caminho `/loki/api/v1/push` é o endpoint utilizado pelo Loki para receber registros.
-
-#### 4.6.3 Configurar as credenciais
-
-Depois de obter essas três informações, crie ou edite o arquivo:
-
-```text
-beirada_ia/app/.env.grafana
-```
-
-Preencha-o com os valores correspondentes à sua instância:
+**2. Preencha as credenciais** em `beirada_ia/app/.env.grafana`:
 
 ```bash
 GRAFANA_CLOUD_ENDPOINT="https://logs-prod-<REGIAO>.grafana.net/loki/api/v1/push"
@@ -551,35 +568,21 @@ GRAFANA_CLOUD_USERNAME="<seu-user-id>"
 GRAFANA_CLOUD_TOKEN="<seu-token>"
 ```
 
-Substitua:
-
-- `<REGIAO>` pela região indicada na URL fornecida pelo Grafana Cloud;
-- `<seu-user-id>` pelo **User ID/Instance ID do Loki** obtido nos detalhes da sua stack;
-- `<seu-token>` pelo token criado na **Access Policy** com `logs:write`.
-
-#### 4.6.3 Disponibilizar as variáveis para a API
-
-Criar o arquivo `.env.grafana` não faz, por si só, com que as variáveis sejam disponibilizadas dentro do contêiner. É necessário informar ao Docker Compose que o serviço `yolo-api` deve carregar esse arquivo como fonte de variáveis de ambiente.
-
-No `docker-compose.yml`, dentro da configuração do serviço `yolo-api`, adicione:
+**3. Carregue o arquivo no serviço**, adicionando ao `yolo-api` no `docker-compose.yml`:
 
 ```yaml
     env_file:
       - ./beirada_ia/app/.env.grafana
 ```
 
-O caminho é relativo à localização do `docker-compose.yml`. Assim, o Docker Compose lê o arquivo `beirada_ia/app/.env.grafana` durante a criação do contêiner e disponibiliza `GRAFANA_CLOUD_ENDPOINT`, `GRAFANA_CLOUD_USERNAME` e `GRAFANA_CLOUD_TOKEN` para a aplicação.
-
-Depois de alterar o `docker-compose.yml`, recrie os contêineres para que a nova configuração seja aplicada:
+**4. Recrie os contêineres** para aplicar a mudança:
 
 ```bash
 docker compose down
 docker compose up -d --build
 ```
 
-A partir desse momento, o `yolo-api` poderá utilizar as credenciais para enviar os logs ao Grafana Cloud.
-
-Se essa integração não for configurada, o sistema continua funcionando localmente, mas os logs não serão exportados para o dashboard do Grafana Cloud.
+A partir daqui o `yolo-api` envia logs ao Grafana Cloud. Sem essa configuração, o sistema roda normalmente só sem o dashboard remoto.
 
 ---
 
@@ -622,72 +625,31 @@ docker compose down
 ```
 ---
 
-## Passo 6: Acompanhamento dos resultados
+## Passo 6: Verificação do resultado
 
-Depois de iniciar os serviços, os resultados da execução podem ser acompanhados pelo streaming em tempo real e, quando configurado, pelo Grafana.
+A verificação confirma, em ordem, que cada camada do sistema está de pé e termina com o ciclo físico completo — da câmera ao desvio da peça.
 
-### 6.1 Streaming
-
-O servidor de streaming disponibiliza a imagem da câmera em tempo real, com as detecções realizadas pelo modelo sobrepostas ao vídeo.
-
-Acesse pelo navegador de outra máquina da mesma rede:
-
-```text
-http://<IP-DO-RPI>:5000/stream
-http://<IP-DO-RPI>:8000/stream/view
-```
-
-O resultado deve apresentar a imagem da esteira com as **bounding boxes** e os respectivos rótulos de classe sobre as peças detectadas.
-
-> **[IMAGEM: STREAMING]**
-> Adicionar: captura do streaming em funcionamento, mostrando peças reais da esteira com bounding boxes e classes identificadas.
-
-### 6.2 Grafana e monitoramento
-
-Quando a integração com o Grafana Cloud estiver configurada, os logs da aplicação podem ser acompanhados no dashboard. A configuração é opcional e não interfere no funcionamento principal do sistema.
-
-A API também disponibiliza o endpoint `/metrics` para consulta das métricas acumuladas.
-
-<p align="left">
-    <img src="docs/imagens/grafana-2.jpg"
-        alt="Dashboard do Grafana"
-        width="700">
-</p>
-<p align="left">
-    <img src="docs/imagens/grafana-3.jpg"
-        alt="Dashboard do Grafana"
-        width="700">
-</p>
-
----
-
-## Passo 7: Verificação da solução
-
-A verificação final deve confirmar o funcionamento de cada etapa do sistema e, principalmente, do fluxo completo de triagem.
-
-### 7.1 Serviços da aplicação
-
-Confirme que os três serviços estão em execução:
+### 6.1 Serviços da aplicação
 
 ```bash
 docker compose ps
 ```
 
-O resultado deve indicar os serviços `yolo-api`, `yolo-stream` e `yolo-client` como ativos.
+**Esperado:** `yolo-api`, `yolo-stream` e `yolo-client` ativos.
 
-### 7.2 API e modelo de inferência
-
-Na Raspberry Pi, consulte o estado da API:
+### 6.2 API e modelo de inferência
 
 ```bash
 curl http://localhost:8000/health
 ```
 
-A resposta deve indicar que o serviço está ativo e que o modelo foi carregado, por exemplo:
+**Esperado:**
 
 ```json
 {"status":"ok","model_loaded":true,"model_name":"yolov8n_v4.pt"}
 ```
+
+Se `model_loaded` vier `false`, o caminho do modelo está errado — volte ao [Passo 4.2](#42-obter-os-pesos-do-modelo).
 
 Em seguida, teste uma captura da câmera:
 
@@ -696,11 +658,11 @@ curl -X POST http://localhost:8000/predict/camera \
      -H "Content-Type: application/json" -d '{}'
 ```
 
-A resposta deve conter o campo `detections`. Cada detecção deve apresentar, quando houver uma peça identificada, sua `label`, `confidence` e `bbox`.
+**Esperado:** um JSON com o array `detections`; cada item com `label`, `confidence` e `bbox` quando houver peça na câmera.
 
-### 7.3 Resultado visual da detecção
+### 6.3 Streaming — resultado visual da detecção
 
-Acesse o streaming a partir de outro dispositivo da mesma rede:
+Acesse pelo navegador de outra máquina da mesma rede (descubra o IP com o [Passo 4.5](#45-descobrir-o-ip-da-raspberry-pi)):
 
 ```text
 http://<IP-DO-RPI>:5000/stream
@@ -720,7 +682,22 @@ Confirme visualmente que:
         width="700">
 </p>
 
-### 7.4 Comunicação e atuação do ESP32-S3
+### 6.4 Grafana e monitoramento (opcional)
+
+Se o [Passo 4.6](#46-configurar-o-grafana-cloud-opcional) foi configurado, acompanhe os logs no dashboard do Grafana Cloud. A API também expõe `/metrics` para consulta local das métricas acumuladas, com ou sem o Grafana configurado.
+
+<p align="left">
+    <img src="docs/imagens/grafana-2.jpg"
+        alt="Dashboard do Grafana"
+        width="700">
+</p>
+<p align="left">
+    <img src="docs/imagens/grafana-3.jpg"
+        alt="Dashboard do Grafana"
+        width="700">
+</p>
+
+### 6.5 Comunicação e atuação do ESP32-S3
 
 Com o firmware conectado e os serviços em execução, acompanhe os logs do ESP32-S3 durante a passagem de uma peça. O fluxo esperado é:
 
@@ -734,7 +711,7 @@ Para uma peça das classes **1, 2 ou 3**, deve ocorrer o acionamento do servo co
 > **[IMAGEM: LOGS DO ESP32-S3]**
 > Adicionar: trecho do monitor serial mostrando o recebimento de uma classe, o acionamento do servo e a confirmação pelo sensor de saída.
 
-### 7.5 Teste ponta a ponta
+### 6.6 Teste ponta a ponta
 
 Coloque uma peça de teste na esteira e acompanhe o ciclo completo:
 
@@ -750,19 +727,15 @@ Para uma peça da **classe 4**, o teste deve confirmar que ela permanece no traj
 > **[GIF: CICLO COMPLETO]**
 > Adicionar: registro do ciclo completo, desde a peça na esteira e sua detecção até o desvio pelo servo.
 
-### 7.6 Testes automatizados
-
-Os testes automatizados da aplicação podem ser executados com:
+### 6.7 Testes automatizados
 
 ```bash
 docker compose exec yolo-api python -m pytest tests/ -v
 ```
 
-O resultado esperado é que os testes de `test_api.py` e `test_preprocessor.py` sejam concluídos sem falhas.
+**Esperado:** os testes de `test_api.py` e `test_preprocessor.py` concluídos sem falhas.
 
 ### Resultado esperado da replicação
-
-A replicação pode ser considerada concluída quando:
 
 - [ ] os serviços Docker estão em execução;
 - [ ] a API responde ao endpoint `/health` com o modelo carregado;
@@ -775,9 +748,10 @@ A replicação pode ser considerada concluída quando:
 - [ ] os sensores confirmam a entrada e a saída das peças;
 - [ ] o ciclo ponta a ponta ocorre conforme descrito;
 - [ ] os testes automatizados são concluídos sem falhas.
+
 ---
 
-## Passo 8: Troubleshooting
+## Passo 7: Troubleshooting
 
 ### Visão computacional
 
