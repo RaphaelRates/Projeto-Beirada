@@ -11,8 +11,6 @@
 ## Sumário
 
 **Parte I: Entendimento da solução**
-
-
 1. [Visão Geral](#1-visão-geral)
 2. [Diagrama de Arquitetura](#2-diagrama-de-arquitetura)
 3. [Esquemático elétrico](#3-esquemático-elétrico)
@@ -22,6 +20,8 @@
 7. [Protocolo de comunicação RPi ↔ ESP32](#7-protocolo-de-comunicação-rpi--esp32)
 
 **Parte II: Manual de replicação**
+
+
 8. [Pré-requisitos](#pré-requisitos)
 9. [Passo 1: Montagem física do hardware](#passo-1-montagem-física-do-hardware)
 10. [Passo 2: Preparação do Raspberry Pi 5](#passo-2-preparação-do-raspberry-pi-5)
