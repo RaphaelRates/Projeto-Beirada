@@ -11,6 +11,8 @@
 ## Sumário
 
 **Parte I: Entendimento da solução**
+
+
 1. [Visão Geral](#1-visão-geral)
 2. [Diagrama de Arquitetura](#2-diagrama-de-arquitetura)
 3. [Esquemático elétrico](#3-esquemático-elétrico)
