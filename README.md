@@ -117,8 +117,39 @@ flowchart LR
 
 ## 4. Tabela de pinagem
 
-**(TBD)**
+Valores definidos em [`beirada_esp/ledc_basic/main/servo.h`](beirada_esp/ledc_basic/main/servo.h). Alterar o hardware exige editar esse arquivo e recompilar o firmware.
 
+### Servomotores (saída PWM via periférico LEDC)
+
+| Constante | GPIO | Canal LEDC | Posição na esteira |
+|---|---|---|---|
+| `SERVO1_GPIO` | 20 | `LEDC_CHANNEL_0` | Desvio 1 |
+| `SERVO2_GPIO` | 7  | `LEDC_CHANNEL_1` | Desvio 2 |
+| `SERVO3_GPIO` | 26 | `LEDC_CHANNEL_2` | Desvio 3 |
+
+### Sensores ópticos E18-D80NK (entrada digital, pull-up interno)
+
+| Constante | GPIO | Função |
+|---|---|---|
+| `SENSOR1_ENTRADA_GPIO` | 4  | Dispara o servo 1 |
+| `SENSOR2_ENTRADA_GPIO` | 38 | Dispara o servo 2 |
+| `SENSOR3_ENTRADA_GPIO` | 39 | Dispara o servo 3 |
+| `SENSOR1_SAIDA_GPIO`   | 5  | Confirma transferência e recolhe o servo 1 |
+| `SENSOR2_SAIDA_GPIO`   | 16 | Confirma transferência e recolhe o servo 2 |
+| `SENSOR3_SAIDA_GPIO`   | 17 | Confirma transferência e recolhe o servo 3 |
+
+**Lógica de leitura:** nível **LOW (0) = objeto detectado**. O E18-D80NK é NPN normalmente aberto; com pull-up interno habilitado, o pino repousa em HIGH e vai a LOW quando o feixe é interrompido.
+
+### Parâmetros de PWM
+
+| Parâmetro | Valor | Observação |
+|---|---|---|
+| Frequência | 50 Hz | Padrão de servos hobby |
+| Resolução | 14 bits (`LEDC_TIMER_14_BIT`) | Duty máximo 16383 |
+| Pulso mínimo | 500 µs | Corresponde a 0° |
+| Pulso máximo | 2500 µs | Corresponde a 180° |
+| Repouso | 90° | Braço paralelo à esteira |
+| Acionado | 150° (servo 2: 50°) | O servo 2 é espelhado por estar no lado oposto |
 ---
 
 ## 5. Componentes da Solução
