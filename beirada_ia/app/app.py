@@ -12,7 +12,6 @@ from pathlib import Path
 import cv2
 import httpx
 import numpy as np
-from core.esp32 import enviar, iniciar
 from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.responses import HTMLResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
@@ -28,6 +27,8 @@ from schemas import (
     PredictRequest,
     PredictResponse,
 )
+import threading
+import serial
 
 BASE_DIR = Path(__file__).resolve().parent
 templates = Jinja2Templates(directory=str(BASE_DIR / "templates"))
@@ -42,9 +43,6 @@ try:
 except Exception:
     pass
 
-
-if os.getenv("ENABLE_ESP32", "1") == "1":
-    iniciar(SERIAL_PORT, BAUD)
 
 INFERENCE_TIME = Gauge("yolo_inference_time_seconds","Tempo de inferência do YOLO em segundos (última execução)",)
 DETECTIONS_BY_CLASS_TOTAL = Counter("yolo_detections_by_class_total","Total cumulativo de objetos detectados pelo YOLO por classe",["class_name"],)
@@ -66,6 +64,84 @@ _metrics = {"total": 0, "success": 0, "total_ms": 0.0}
 _metrics_file = Path("/tmp/beirada_metrics.json")
 _metrics_lock_file = Path("/tmp/beirada_metrics.lock")
 _streaming_lock = asyncio.Lock()
+
+_ser = None
+_lock = threading.Lock()
+_monitor_thread = None
+_stop_monitor = threading.Event()
+_porta = "/dev/ttyUSB0"
+_baud = 115200
+_INTERVALO_VERIFICACAO = 3
+
+def iniciar(porta="/dev/ttyUSB0", baud=115200):
+    """Inicia a conexão e monitora o ESP32 continuamente."""
+    global _monitor_thread, _porta, _baud
+    _porta = porta
+    _baud = baud
+    _stop_monitor.clear()
+
+    _tentar_conectar()
+
+    if _monitor_thread is None or not _monitor_thread.is_alive():
+        _monitor_thread = threading.Thread(
+            target=_monitorar_conexao,
+            name="esp32-connection-monitor",
+            daemon=True,
+        )
+        _monitor_thread.start()
+
+
+def _tentar_conectar():
+    global _ser
+    try:
+        with _lock:
+            if _ser is not None and _ser.is_open:
+                print("[ESP32] Conexão verificada.")
+                return True
+
+            _ser = serial.Serial(_porta, _baud, timeout=0.1)
+
+        time.sleep(2)   # aguarda ESP32 bootar após abrir a porta
+        print(f"[ESP32] Conectado em {_porta} @ {_baud}")
+        ESP32_CONNECTED.set(1)
+        enviar("80")
+        return True
+    except (serial.SerialException, OSError) as e:
+        with _lock:
+            _ser = None
+        print(f"[ESP32] Sem conexão. Nova tentativa em {_INTERVALO_VERIFICACAO}s: {e}")
+        ESP32_CONNECTED.set(0)
+        return False
+
+
+def _monitorar_conexao():
+    while not _stop_monitor.wait(_INTERVALO_VERIFICACAO):
+        _tentar_conectar()
+
+def enviar(msg: str):
+    """Envia uma string + '\\n' para o ESP32. Não bloqueia se a serial cair."""
+    global _ser
+    try:
+        with _lock:   # evita escrita concorrente entre threads
+            if _ser is None or not _ser.is_open:
+                return
+            _ser.write((msg + "\n").encode("utf-8"))
+    except (serial.SerialException, OSError) as e:
+        print(f"[ESP32] Erro ao enviar: {e}")
+        with _lock:
+            _ser = None
+
+def fechar():
+    global _ser
+    _stop_monitor.set()
+    with _lock:
+        if _ser and _ser.is_open:
+            _ser.close()
+        _ser = None
+
+
+if os.getenv("ENABLE_ESP32", "1") == "1":
+    iniciar(SERIAL_PORT, BAUD)
 
 def _metrics_default():
     return {"total": 0, "success": 0, "total_ms": 0.0}
