@@ -315,7 +315,15 @@ Para cada servo, siga a tabela de pinagem da [seção 4](#4-tabela-de-pinagem):
 | Sensor de entrada | Logo **antes** do servo, inclinado a **90°** em relação à esteira, no mesmo sentido de movimento, de forma a acompanhar a peça até que seja desviada |
 | Sensor de saída | Na **esteira perpendicular**, posicionado para detectar a peça já transferida |
 
-### 1.4 Posicionar a câmera
+### 1.4 Conectar os sensores
+
+Cada E18-D80NK tem três fios:
+
+- **Marrom** → trilho 5 V da protoboard
+- **Azul** → GND
+- **Preto** (sinal OUT) → GPIO do ESP32-S3, conforme a tabela de pinagem
+
+### 1.5 Posicionar a câmera
 
 A câmera deve ser instalada de forma que seu campo de visão cubra a região da esteira utilizada para a detecção, mantendo as peças visíveis e com iluminação suficiente para a inferência.
 
@@ -324,14 +332,6 @@ A câmera deve ser instalada de forma que seu campo de visão cubra a região da
 > **Adicionar:** foto da montagem mostrando a câmera em relação à esteira, com altura, inclinação, distância até a região de detecção, área enquadrada e sentido de movimento da esteira.
 >
 > **Medidas da montagem final:** altura **X cm** · distância **Y cm** · inclinação **Z°**.
-
-### 1.5 Conectar os sensores
-
-Cada E18-D80NK tem três fios:
-
-- **Marrom** → trilho 5 V da protoboard
-- **Azul** → GND
-- **Preto** (sinal OUT) → GPIO do ESP32-S3, conforme a tabela de pinagem
 
 ---
 
@@ -486,65 +486,11 @@ Sem essa configuração o sistema funciona normalmente - apenas não exporta log
 
 ---
 
-## Passo 5: API, Streaming e Monitoramento
+## Passo 5: Execução
 
-### 5.1 API de inferência
+### 5.1 Iniciar os serviços
 
-A API `yolo-api` disponibiliza endpoints para verificar o serviço, executar inferências e consultar métricas.
-
-| Método | Rota | Função |
-|---|---|---|
-| `GET` | `/health` | Verificar serviço e carregamento do modelo |
-| `POST` | `/predict` | Inferência sobre imagem |
-| `POST` | `/predict/image` | Inferência com imagem anotada |
-| `POST` | `/predict/camera` | Inferência usando a câmera |
-| `GET` | `/metrics` | Consultar métricas acumuladas |
-| `GET` | `/docs` | Documentação interativa Swagger |
-
-Para verificar a API:
-
-```bash
-curl http://localhost:8000/health
-```
-
-Também é possível acessar a documentação em `http://<IP-DO-RPI>:8000/docs`.
-
-> **[IMAGEM: API / SWAGGER]**
->
-> **Adicionar:** captura da página `/docs` ou da resposta de `/health`, mostrando a API funcionando.
-
-### 5.2 Streaming
-
-O serviço `yolo-stream` disponibiliza o vídeo da câmera com as detecções do YOLO sobrepostas.
-
-```text
-http://<IP-DO-RPI>:5000/stream
-http://<IP-DO-RPI>:8000/stream/view
-```
-
-O resultado esperado é o vídeo da esteira em tempo real, com bounding boxes, classes e confiança das detecções.
-
-> **[IMAGEM: STREAMING]**
->
-> **Adicionar:** captura do stream com peças reais e suas bounding boxes/rótulos.
-
-### 5.3 Grafana
-
-O sistema pode enviar logs para o **Grafana Cloud/Loki**. Essa integração é opcional e está descrita no Passo 4.5.
-
-Após configurar as credenciais e iniciar os serviços, o funcionamento pode ser acompanhado no dashboard configurado no Grafana. O endpoint `/metrics` também permite consultar as métricas disponibilizadas pela API.
-
-> **[IMAGEM: DASHBOARD GRAFANA]**
->
-> **Adicionar:** captura do dashboard final com dados reais da execução, mostrando os principais indicadores e/ou logs do sistema.
-
-> **[IMAGEM: LOGS DA EXECUÇÃO]**
->
-> **Adicionar:** captura dos logs mostrando a inicialização, inferências e comunicação com o ESP32.
-
----
-
-## Passo 6: Execução
+Na raiz do repositório, execute:
 
 ```bash
 docker compose up --build
@@ -552,41 +498,106 @@ docker compose up --build
 
 Na primeira execução o build leva vários minutos (compilação do OpenCV e do PyTorch para ARM). Execuções seguintes usam cache.
 
-Para rodar em segundo plano:
+Para executar em segundo plano:
 
 ```bash
 docker compose up -d --build
+```
+
+### 5.2 Verificar os serviços
+
+```bash
+docker compose ps
+```
+
+Os serviços esperados são `yolo-api`, `yolo-stream` e `yolo-client`.
+
+Para acompanhar os logs da API:
+
+```bash
 docker compose logs -f yolo-api
 ```
 
-Para parar:
+### 5.3 Encerrar os serviços
 
 ```bash
 docker compose down
 ```
+---
 
-### Serviços expostos
+## Passo 6: Acompanhamento dos resultados
 
-| Serviço | Endereço | Função |
-|---|---|---|
-| `yolo-api` | `http://<IP-DO-RPI>:8000` | API REST de inferência |
-| `yolo-stream` | `http://<IP-DO-RPI>:5000/stream` | Stream MJPEG anotado |
-| `yolo-client` | - | Roda inferências de teste automaticamente |
+Depois de iniciar os serviços, os resultados da execução podem ser acompanhados pela API, pelo streaming em tempo real e, quando configurado, pelo Grafana.
 
-### Endpoints principais
+### 6.1 API de inferência
 
-| Método | Rota | Descrição |
-|---|---|---|
-| `GET` | `/health` | Estado do serviço e do modelo carregado |
-| `POST` | `/predict` | Inferência sobre imagem em base64, retorna JSON |
-| `POST` | `/predict/image` | Mesma inferência, retorna JPEG anotado |
-| `POST` | `/predict/camera` | Captura da câmera e infere, retorna JSON |
-| `GET` | `/predict/camera/image` | Captura da câmera e infere, retorna JPEG |
-| `POST` | `/predict/batch` | Lote de imagens |
-| `GET` | `/metrics` | Métricas acumuladas (total, sucesso, latência média) |
-| `GET` | `/stream/camera` | Stream MJPEG direto da API |
-| `GET` | `/stream/view` | Página HTML de visualização em tempo real |
-| `GET` | `/docs` | Documentação interativa (Swagger) |
+> Para acessar a API, o streaming ou outros serviços da Raspberry Pi a partir de outra máquina na mesma rede, descubra o endereço IP da RPi com:
+```bash
+hostname -I
+```
+> Use o endereço IPv4 retornado no lugar de `<IP-DO-RPI>` nos endereços apresentados nas próximas seções.
+
+A API pode ser acessada pelo endereço:
+
+```text
+http://<IP-DO-RPI>:8000
+```
+
+Para verificar rapidamente se a API está funcionando e se o modelo foi carregado:
+
+```bash
+curl http://<IP-DO-RPI>:8000/health
+```
+
+A documentação interativa da API está disponível em:
+
+```text
+http://<IP-DO-RPI>:8000/docs
+```
+
+Os principais recursos disponibilizados pela API são:
+
+| Rota | Função |
+|---|---|
+| `/health` | Verifica o estado do serviço e do modelo carregado. |
+| `/predict` | Realiza inferência sobre uma imagem em base64 e retorna JSON. |
+| `/predict/image` | Realiza inferência e retorna a imagem anotada. |
+| `/predict/camera` | Captura uma imagem da câmera e realiza a inferência. |
+| `/predict/camera/image` | Captura da câmera e retorna a imagem anotada. |
+| `/predict/batch` | Realiza inferência sobre um lote de imagens. |
+| `/metrics` | Disponibiliza as métricas acumuladas da aplicação. |
+| `/docs` | Abre a documentação interativa (Swagger). |
+
+> **[IMAGEM: API / SWAGGER]**
+> Adicionar: captura da documentação Swagger aberta no endereço `/docs`, mostrando alguns dos endpoints disponíveis.
+
+### 6.2 Streaming
+
+O servidor de streaming disponibiliza a imagem da câmera em tempo real, com as detecções realizadas pelo modelo sobrepostas ao vídeo.
+
+Acesse pelo navegador de outra máquina da mesma rede:
+
+```text
+http://<IP-DO-RPI>:5000/stream
+http://<IP-DO-RPI>:8000/stream/view
+```
+
+O resultado deve apresentar a imagem da esteira com as **bounding boxes** e os respectivos rótulos de classe sobre as peças detectadas.
+
+> **[IMAGEM: STREAMING]**
+> Adicionar: captura do streaming em funcionamento, mostrando peças reais da esteira com bounding boxes e classes identificadas.
+
+### 6.3 Grafana e monitoramento
+
+Quando a integração com o Grafana Cloud estiver configurada, os logs da aplicação podem ser acompanhados no dashboard. A configuração é opcional e não interfere no funcionamento principal do sistema.
+
+A API também disponibiliza o endpoint `/metrics` para consulta das métricas acumuladas.
+
+> **[IMAGEM: DASHBOARD GRAFANA]**
+> Adicionar: captura do dashboard utilizado no projeto, mostrando as métricas e/ou logs relevantes da execução.
+
+> **[IMAGEM: LOGS DA EXECUÇÃO]**
+> Adicionar: captura dos logs da aplicação durante uma execução, evidenciando o processamento das detecções e a comunicação com o ESP32-S3.
 
 ---
 
