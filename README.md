@@ -291,7 +291,7 @@ Pillow==10.3.0
 | rpicam-apps | Captura via câmera CSI na Raspberry Pi | Já vem no Raspberry Pi OS |
 | ESP-IDF | Compila e grava o firmware do ESP32-S3 | [Passo 3.1](#31-instalar-o-esp-idf) |
 
-> As dependências Python de dentro dos contêineres Docker (`yolo-api`, `yolo-stream`) são instaladas automaticamente pelo `Dockerfile.api` durante o `docker compose up --build` — a lista acima é só para quem for rodar fora do Docker ou auditar versões.
+> As dependências Python de dentro dos contêineres Docker (`yolo-api`, `yolo-stream`) são instaladas automaticamente pelo `Dockerfile.api` durante o `docker compose up --build` - a lista acima é só para quem for rodar fora do Docker ou auditar versões.
 
 # PARTE 2: MANUAL DE REPLICAÇÃO
 
