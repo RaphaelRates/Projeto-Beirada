@@ -3,20 +3,12 @@ from pydantic import BaseModel, Field
 
 
 class PredictRequest(BaseModel):
-    image_base64: str | None = Field(
-        None,
-        description="Imagem PNG/JPG codificada em base64"
-    )
-    image_url: str | None = Field(
-        None,
-        description="URL pública acessível a partir do container"
-    )
-    confidence: float = Field(0.65, ge=0.0, le=1.0,
-        description="Limiar mínimo de confiança (0–1)")
-    iou: float = Field(0.40, ge=0.0, le=1.0,
-        description="Limiar de sobreposição entre boxes na deteção YOLO")
+    image_base64: str | None = Field( None, description="Imagem PNG/JPG codificada em base64")
+    image_url: str | None = Field( None, description="URL pública acessível a partir do container" )
+    confidence: float = Field(0.65, ge=0.0, le=1.0, description="Limiar mínimo de confiança (0–1)")
+    iou: float = Field(0.40, ge=0.0, le=1.0,description="Limiar de sobreposição entre boxes na deteção YOLO")
     model_name: str = Field("yolov8n_v5.pt",
-        description="Nome do arquivo de pesos dentro de /app/models/")
+    description="Nome do arquivo de pesos dentro de /app/models/")
 
 class Detection(BaseModel):
     label: str

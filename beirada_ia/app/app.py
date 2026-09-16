@@ -47,20 +47,9 @@ iniciar(SERIAL_PORT, BAUD)
 INFERENCE_TIME = Gauge("yolo_inference_time_seconds","Tempo de inferência do YOLO em segundos (última execução)",)
 DETECTIONS_BY_CLASS_TOTAL = Counter("yolo_detections_by_class_total","Total cumulativo de objetos detectados pelo YOLO por classe",["class_name"],)
 DETECTIONS_COUNT_BY_CLASS = Gauge("yolo_detections_count_by_class","Quantidade de objetos da classe detectados na última inferência ""(zerado explicitamente quando a classe não aparece mais no frame)",["class_name"],)
-DETECTION_CLASS_PERCENTAGE = Gauge(
-    "yolo_detection_class_percentage",
-    "Percentual (0-100) que a classe representa do total de detecções "
-    "monitoradas na última inferência",
-    ["class_name"],
-)
+DETECTION_CLASS_PERCENTAGE = Gauge("yolo_detection_class_percentage","Percentual (0-100) que a classe representa do total de detecções ""monitoradas na última inferência", ["class_name"],)
 DETECTION_CONFIDENCE = Gauge("yolo_detection_confidence_last","Última confiança média observada por classe na última inferência",["class_name"],)
-DETECTION_CONFIDENCE_HISTOGRAM = Histogram(
-    "yolo_detection_confidence",
-    "Distribuição de confiança das detecções por classe "
-    "(use para média/percentis por classe ao longo do tempo no Grafana)",
-    ["class_name"],
-    buckets=[0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.65, 0.7, 0.75, 0.8, 0.85, 0.9, 0.95, 1.0],
-)
+DETECTION_CONFIDENCE_HISTOGRAM = Histogram( "yolo_detection_confidence","Distribuição de confiança das detecções por classe ""(use para média/percentis por classe ao longo do tempo no Grafana)",["class_name"],buckets=[0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.65, 0.7, 0.75, 0.8, 0.85, 0.9, 0.95, 1.0],)
 STREAM_ACTIVE = Gauge("yolo_stream_active","1 se há um stream de câmera em andamento, 0 caso contrário",)
 STREAM_FPS = Gauge("yolo_stream_fps","Taxa de quadros por segundo entregues pelo stream (média móvel simples)",)
 _MONITORED_CLASSES = {"serrote","martelo","parafuso","estilete",}
@@ -231,20 +220,10 @@ def _run_inference(image_np: np.ndarray, model_name: str, confidence: float) -> 
             cls_id = int(box.cls[0].item())
             conf_val = float(box.conf[0].item())
 
-            detections.append(Detection(
-                label=model.names[cls_id],
-                confidence=round(conf_val, 4),
-                bbox=[round(float(c), 2) for c in bbox_orig],
-            ))
+            detections.append(Detection(label=model.names[cls_id],confidence=round(conf_val, 4),bbox=[round(float(c), 2) for c in bbox_orig], ))
 
     h, w = image_np.shape[:2]
-    return PredictResponse(
-        detections=detections,
-        inference_ms=round(elapsed_ms, 2),
-        model_used=model_name,
-        image_width=w,
-        image_height=h,
-    )
+    return PredictResponse(detections=detections,inference_ms=round(elapsed_ms, 2),model_used=model_name,image_width=w,image_height=h,)
 
 
 def _run_stream_or_camera_only(frame: np.ndarray, model, confidence: float, logged_objects=None):
@@ -313,21 +292,8 @@ def _capture_frame_from_camera(device_id: int = 0) -> np.ndarray:
     """Captura frame via rpicam-still/libcamera-still ou OpenCV."""
     for cmd_tool in ["rpicam-still", "libcamera-still"]:
         try:
-            cmd = [
-                cmd_tool,
-                "-t", "500",
-                "-n",
-                "-o", "-",
-                "--width", "1352",
-                "--height", "720",
-                "-e", "jpg",
-            ]
-            result = subprocess.run(
-                cmd,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                timeout=5,
-            )
+            cmd = [cmd_tool,"-t", "500","-n","-o", "-","--width", "1352","--height", "720","-e", "jpg", ]
+            result = subprocess.run(cmd,stdout=subprocess.PIPE,stderr=subprocess.PIPE,timeout=5,)
             if result.returncode == 0 and result.stdout:
                 img = Image.open(io.BytesIO(result.stdout)).convert("RGB")
                 return np.array(img)
@@ -345,10 +311,7 @@ def _capture_frame_from_camera(device_id: int = 0) -> np.ndarray:
         finally:
             cap.release()
 
-    raise HTTPException(
-        status_code=500,
-        detail="Falha ao capturar imagem da câmera. Verifique a conexão do cabo flat.",
-    )
+    raise HTTPException(status_code=500,detail="Falha ao capturar imagem da câmera. Verifique a conexão do cabo flat.",)
 
 
 @app.get("/health", response_model=HealthResponse)
@@ -361,11 +324,7 @@ async def health_check():
         loaded = False
         log_event("health_error", level="ERROR", reason=str(e))
 
-    return HealthResponse(
-        status="ok",
-        model_loaded=loaded,
-        model_name=model_name,
-    )
+    return HealthResponse(status="ok",model_loaded=loaded,model_name=model_name,)
 
 
 @app.post("/predict", response_model=PredictResponse)
@@ -373,62 +332,26 @@ def predict(request: PredictRequest):
     request_id = str(uuid.uuid4())[:8]
     _metrics_update(total_delta=1)
 
-    log_event(
-        "predict_start",
-        request_id=request_id,
-        model=request.model_name,
-        confidence=request.confidence,
-    )
+    log_event("predict_start",request_id=request_id,model=request.model_name,confidence=request.confidence,)
 
     if not request.image_base64 and not request.image_url:
-        log_event(
-            "predict_error",
-            level="WARN",
-            request_id=request_id,
-            reason="missing_input",
-        )
-        raise HTTPException(
-            status_code=422,
-            detail="Forneça image_base64 ou image_url.",
-        )
+        log_event("predict_error",level="WARN",request_id=request_id,reason="missing_input",)
+        raise HTTPException( status_code=422, detail="Forneça image_base64 ou image_url.", )
 
     try:
         img = _load_image_from_request(request)
-        result = _run_inference(
-            img,
-            request.model_name,
-            request.confidence,
-        )
-
+        result = _run_inference(img, request.model_name,request.confidence,)
         _metrics_update(success_delta=1, total_ms_delta=result.inference_ms)
-
-        log_event(
-            "predict_complete",
-            request_id=request_id,
-            model=result.model_used,
-            detections=len(result.detections),
-            inference_ms=result.inference_ms,
-            image_size=f"{result.image_width}x{result.image_height}",
-        )
+        log_event("predict_complete",request_id=request_id,model=result.model_used,detections=len(result.detections),inference_ms=result.inference_ms,image_size=f"{result.image_width}x{result.image_height}",)
         return result
 
     except HTTPException:
         raise
     except FileNotFoundError as e:
-        log_event(
-            "predict_error",
-            level="ERROR",
-            request_id=request_id,
-            reason=str(e),
-        )
+        log_event("predict_error",level="ERROR",request_id=request_id,reason=str(e),)
         raise HTTPException(status_code=404, detail=str(e)) from e
     except Exception as e:
-        log_event(
-            "predict_error",
-            level="ERROR",
-            request_id=request_id,
-            reason=str(e),
-        )
+        log_event("predict_error",level="ERROR",request_id=request_id,reason=str(e),)
         raise HTTPException(status_code=500, detail=str(e)) from e
 
 
@@ -713,17 +636,7 @@ async def stream_camera(
             fps_last_ts = time.perf_counter()
             fps_smoothed = 0.0
 
-            cmd = [
-                "rpicam-vid",
-                "-t", "0",
-                "-n",
-                "--codec", "mjpeg",
-                "--quality", "80",
-                "--width", "1352",
-                "--height", "720",
-                "--framerate", str(framerate),
-                "-o", "-",
-            ]
+            cmd = ["rpicam-vid","-t", "0","-n","--codec", "mjpeg","--quality", "80","--width", "1352","--height", "720","--framerate", str(framerate),"-o", "-",]
 
             proc = None
             reader_task = None
