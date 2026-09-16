@@ -261,7 +261,7 @@ screen /dev/ttyACM0 115200      # sair: Ctrl+A depois K
 - [ ] Cabo USB-C de dados (atenção: cabos "só carga" não funcionam)
 - [ ] 3 servomotores (SG90, MG90S ou equivalente)
 - [ ] 6 sensores ópticos E18-D80NK
-- [ ] 2 protoboards + jumpers macho-macho e macho-fêmea
+- [ ] 1 protoboard + jumpers macho-macho e macho-fêmea
 - [ ] Fonte externa 5 V com no mínimo 3 A
 - [ ] Esteira transportadora com velocidade constante
 - [ ] Peças de teste entre 10 e 15 cm na maior dimensão
@@ -293,9 +293,8 @@ screen /dev/ttyACM0 115200      # sair: Ctrl+A depois K
 
 ### 1.1 Preparar os barramentos de energia
 
-1. Na **protoboard 1**, conecte a fonte externa de 5 V aos trilhos de alimentação. Esta protoboard alimenta os servomotores.
-2. Na **protoboard 2**, faça o mesmo para os sensores.
-3. **Interligue o trilho GND das duas protoboards ao GND do ESP32-S3.** Sem esse terra comum nada funciona corretamente.
+1. Na **protoboard**, conecte a fonte externa de 5 V aos trilhos de alimentação. Faça o mesmo para os sensores.
+2. **Interligue o trilho GND das duas protoboards ao GND do ESP32-S3.** Sem esse terra comum nada funciona corretamente.
 
 ### 1.2 Conectar os servomotores
 
