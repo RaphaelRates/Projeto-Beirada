@@ -577,11 +577,16 @@ Quando a integração com o Grafana Cloud estiver configurada, os logs da aplica
 
 A API também disponibiliza o endpoint `/metrics` para consulta das métricas acumuladas.
 
-> **[IMAGEM: DASHBOARD GRAFANA]**
-> Adicionar: captura do dashboard utilizado no projeto, mostrando as métricas e/ou logs relevantes da execução.
-
-> **[IMAGEM: LOGS DA EXECUÇÃO]**
-> Adicionar: captura dos logs da aplicação durante uma execução, evidenciando o processamento das detecções e a comunicação com o ESP32-S3.
+<p align="left">
+    <img src="docs/imagens/grafana-1.jpg"
+        alt="Dashboard do Grafana"
+        width="700">
+</p>
+<p align="left">
+    <img src="docs/imagens/grafana-2.jpg"
+        alt="Dashboard do Grafana"
+        width="700">
+</p>
 
 ---
 
@@ -638,7 +643,7 @@ Confirme visualmente que:
 - as **bounding boxes** estão posicionadas sobre as peças correspondentes;
 - o rótulo exibido corresponde à classe identificada.
 
-<p align="center">
+<p align="left">
     <img src="docs/imagens/gif-deteccao.gif"
         alt="Detecção de classe"
         width="700">
