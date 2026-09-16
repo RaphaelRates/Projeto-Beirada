@@ -578,12 +578,12 @@ Quando a integração com o Grafana Cloud estiver configurada, os logs da aplica
 A API também disponibiliza o endpoint `/metrics` para consulta das métricas acumuladas.
 
 <p align="left">
-    <img src="docs/imagens/grafana-1.jpg"
+    <img src="docs/imagens/grafana-2.jpg"
         alt="Dashboard do Grafana"
         width="700">
 </p>
 <p align="left">
-    <img src="docs/imagens/grafana-2.jpg"
+    <img src="docs/imagens/grafana-3.jpg"
         alt="Dashboard do Grafana"
         width="700">
 </p>
