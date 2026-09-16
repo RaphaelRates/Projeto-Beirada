@@ -141,7 +141,7 @@ class RealtimeDetector:
         self.infer_every = infer_every
         self.infer_size  = infer_size
 
-        from app.preprocessing.preprocessor import PreprocessConfig, Preprocessor
+        from beirada_ia.app.preprocessing.preprocessor import PreprocessConfig, Preprocessor
         self.preprocessor = Preprocessor(PreprocessConfig(infer_size=infer_size))
 
 

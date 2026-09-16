@@ -8,7 +8,7 @@ import cv2
 import numpy as np
 
 sys.path.insert(0, '.')
-from preprocessing.utils.evaluate import evaluate_pipeline
+from beirada_ia.app.preprocessing.utils.evaluate import evaluate_pipeline
 
 
 # ── Variante A: sem conversão (passa BGR puro ao modelo) ─────────
