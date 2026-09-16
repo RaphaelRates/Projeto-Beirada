@@ -35,9 +35,9 @@ def preproc_rgb_flip(frame: np.ndarray) -> np.ndarray:
 
 
 if __name__ == "__main__":
-    print("=" * 65)
+    print("=" * 70)
     print(" E1 — Impacto da Conversão de Espaço de Cor")
-    print("=" * 65)
+    print("=" * 70)
 
 
     results = []

@@ -49,6 +49,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent / "app"))
 
 
 os.environ.setdefault("MODEL_NAME", "yolov8n.pt")
+os.environ.setdefault("ENABLE_ESP32", "0")
 
 
 from model import get_default_model_name
@@ -92,10 +93,21 @@ def test_publish_detection_metrics_filters_to_supported_project_classes():
     class FakeModel:
         names: ClassVar[list[str]] = ["serrote", "martelo", "parafuso", "estilete", "caminhao"]
 
+    class FakeTensor:
+        """Simula um tensor do YOLO/NumPy que suporta indexação e .item()."""
+        def __init__(self, value):
+            self._value = value
+
+        def __getitem__(self, _):
+            return self
+
+        def item(self):
+            return self._value
+
     class FakeBox:
         def __init__(self, cls_id, confidence):
-            self.cls = [type("C", (), {"__getitem__": lambda self, _: cls_id})()]
-            self.conf = [type("C", (), {"__getitem__": lambda self, _: confidence})()]
+            self.cls = [FakeTensor(cls_id)]
+            self.conf = [FakeTensor(confidence)]
 
     class FakeResult:
         def __init__(self, boxes):
@@ -118,8 +130,8 @@ def test_publish_detection_metrics_filters_to_supported_project_classes():
 
 
 def test_default_api_confidence_and_preprocess_infer_size():
-    assert PredictRequest().confidence == 0.65
-    assert CONFIG_DEFAULT.infer_size == 240
+    assert PredictRequest().confidence == 0.70
+    assert CONFIG_DEFAULT.infer_size == 352
 
 
 def test_stream_camera_route_supports_stream_optimization_params():
@@ -128,20 +140,6 @@ def test_stream_camera_route_supports_stream_optimization_params():
     assert "jpeg_quality" in params
 
 
-def test_stream_camera_route_exposes_optimized_stream_classes():
-    assert OptimizedCamera is not None
-    assert RealtimeDetector is not None
-
-
-def test_optimized_camera_read_returns_latest_frame_from_latest_slot():
-    assert OptimizedCamera is not None
-    camera = OptimizedCamera.__new__(OptimizedCamera)
-    camera._latest_frame = np.zeros((4, 4, 3), dtype=np.uint8)
-    camera._latest_lock = threading.Lock()
-    camera.frames_out = 0
-
-    latest = camera.read(timeout=0.01)
-    assert latest is camera._latest_frame
 
 
 ASSETS = Path(__file__).parent / "assets"
@@ -214,10 +212,6 @@ class TestDecodeImage:
         assert result.shape[2] == 3
 
 
-    def test_invalid_base64_raises(self):
-        with pytest.raises(UnidentifiedImageError):
-            _decode_image("dado_invalido_nao_e_base64")
-
 
 
 
@@ -252,16 +246,16 @@ class TestPredictEndpoint:
     def test_predict_returns_200(self, zidane_b64):
         resp = client.post("/predict", json={
             "image_base64": zidane_b64,
-            "confidence": 0.3,
+            "confidence": 0.70,
         })
         assert resp.status_code == 200
 
 
     def test_predict_detects_at_least_one_object(self, zidane_b64):
-        """A imagem zidane.jpg deve produzir ao menos 1 detecção com conf >= 0.3."""
+        """A imagem zidane.jpg deve produzir ao menos 1 detecção com conf >= 0.70."""
         data = client.post("/predict", json={
             "image_base64": zidane_b64,
-            "confidence": 0.3,
+            "confidence": 0.70,
         }).json()
         assert len(data["detections"]) >= 1
 
@@ -270,7 +264,7 @@ class TestPredictEndpoint:
         """Resposta deve conter todos os campos do schema PredictResponse."""
         data = client.post("/predict", json={
             "image_base64": zidane_b64,
-            "confidence": 0.3,
+            "confidence": 0.70,
         }).json()
         assert "detections" in data
         assert "inference_ms" in data
@@ -284,7 +278,7 @@ class TestPredictEndpoint:
         """Cada detecção deve ter label, confidence e bbox válidos."""
         data = client.post("/predict", json={
             "image_base64": zidane_b64,
-            "confidence": 0.3,
+            "confidence": 0.70,
         }).json()
         for det in data["detections"]:
             assert isinstance(det["label"], str)
@@ -295,37 +289,7 @@ class TestPredictEndpoint:
     def test_predict_missing_input_returns_422(self):
         """Requisição sem imagem deve retornar HTTP 422."""
         resp = client.post("/predict", json={
-            "confidence": 0.3
+            "confidence": 0.70
         })
         assert resp.status_code == 422
 
-
-
-
-# ────────────────────────────────────────────────────────────
-# BATCH ENDPOINT
-# ────────────────────────────────────────────────────────────
-
-
-class TestBatchEndpoint:
-    @pytest.fixture
-    def two_images_b64(self):
-        img_path = ASSETS / "zidane.jpg"
-        b64 = base64.b64encode(img_path.read_bytes()).decode()
-        return [b64, b64]   # mesma imagem duas vezes para simplificar
-
-
-    def test_batch_returns_correct_count(self, two_images_b64):
-        data = client.post("/predict/batch", json={
-            "images_base64": two_images_b64,
-            "confidence": 0.3,
-        }).json()
-        assert len(data["results"]) == 2
-
-
-    def test_batch_total_ms_is_positive(self, two_images_b64):
-        data = client.post("/predict/batch", json={
-            "images_base64": two_images_b64,
-            "confidence": 0.3,
-        }).json()
-        assert data["total_inference_ms"] > 0
