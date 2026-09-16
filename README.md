@@ -155,7 +155,6 @@ Projeto-Beirada/
 │   └── beirada_deploy.yml      # CI/CD
 │
 ├── docs/
-│   ├── esquematicos/           # Arquivos-fonte (.fzz / .kicad_sch)
 │   └── imagens/                # Imagens e gifs do README
 │
 ├── beirada_esp/                # -- FIRMWARE (ESP32-S3) --
