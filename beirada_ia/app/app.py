@@ -20,7 +20,7 @@ from fastapi.templating import Jinja2Templates
 from model import get_default_model_name, load_model
 from PIL import Image
 from preprocessing.preprocessor import CONFIG_DEFAULT, Preprocessor
-from prometheus_client import Counter, Gauge, Histogram, start_http_server
+from prometheus_client import Counter, Gauge, start_http_server
 from schemas import (
     Detection,
     HealthResponse,
@@ -50,10 +50,10 @@ INFERENCE_TIME = Gauge("yolo_inference_time_seconds","Tempo de inferência do YO
 DETECTIONS_BY_CLASS_TOTAL = Counter("yolo_detections_by_class_total","Total cumulativo de objetos detectados pelo YOLO por classe",["class_name"],)
 DETECTIONS_COUNT_BY_CLASS = Gauge("yolo_detections_count_by_class","Quantidade de objetos da classe detectados na última inferência ""(zerado explicitamente quando a classe não aparece mais no frame)",["class_name"],)
 DETECTION_CLASS_PERCENTAGE = Gauge("yolo_detection_class_percentage","Percentual (0-100) que a classe representa do total de detecções ""monitoradas na última inferência", ["class_name"],)
-DETECTION_CONFIDENCE = Gauge("yolo_detection_confidence_last","Última confiança média observada por classe na última inferência",["class_name"],)
-DETECTION_CONFIDENCE_HISTOGRAM = Histogram( "yolo_detection_confidence","Distribuição de confiança das detecções por classe ""(use para média/percentis por classe ao longo do tempo no Grafana)",["class_name"],buckets=[0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.70, 0.7, 0.75, 0.8, 0.85, 0.9, 0.95, 1.0],)
 STREAM_ACTIVE = Gauge("yolo_stream_active","1 se há um stream de câmera em andamento, 0 caso contrário",)
 STREAM_FPS = Gauge("yolo_stream_fps","Taxa de quadros por segundo entregues pelo stream (média móvel simples)",)
+ESP32_CONNECTED = Gauge("yolo_esp32_connected","1 se o ESP32 está conectado, 0 caso contrário",)
+
 _MONITORED_CLASSES = {"serrote","martelo","parafuso","estilete",}
 
 app = FastAPI(
@@ -162,10 +162,10 @@ def _publish_detection_metrics(model, results, logged_objects=None):
                 match cls_name:
                     case "martelo":
                         enviar("1")
-                    case "parafuso":
-                        enviar("3")
                     case "estilete":
                         enviar("2")
+                    case "parafuso":
+                        enviar("3")
                     case "serrote":
                         enviar("4")
                 log_event("object_detected",class_name=cls_name,confidence=round(conf_val, 4),track_id=track_id,)
@@ -179,7 +179,6 @@ def _publish_detection_metrics(model, results, logged_objects=None):
             counts[cls_name] += 1
             confidence_sums[cls_name] += conf_val
             DETECTIONS_BY_CLASS_TOTAL.labels(cls_name).inc()
-            DETECTION_CONFIDENCE_HISTOGRAM.labels(cls_name).observe(conf_val)
 
     total_monitored = sum(counts.values())
 
@@ -190,7 +189,6 @@ def _publish_detection_metrics(model, results, logged_objects=None):
         DETECTION_CLASS_PERCENTAGE.labels(cls_name).set(round(percentage, 2))
 
         avg_confidence = (confidence_sums[cls_name] / count) if count > 0 else 0.0
-        DETECTION_CONFIDENCE.labels(cls_name).set(round(avg_confidence, 4))
 
     return [
         {"class": cls_name, "confidence": round(confidence, 4)}
