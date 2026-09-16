@@ -22,12 +22,12 @@
 **Parte II: Manual de replicação**
 - [Pré-requisitos](#pré-requisitos)
 - [Passo 1: Montagem física do hardware](#passo-1-montagem-física-do-hardware)
-- [Passo 2: Preparação do Raspberry Pi 5](#passo-2:-preparação-do-raspberry-pi-5)
-- [Passo 3: Compilação e gravação do firmware](#passo-3:-compilação-e-gravação-do-firmware-esp32-s3)
-- [Passo 4: Configuração do sistema](#passo-4:-configuração-do-sistema)
-- [Passo 5: Execução](#passo-5:-execução)
-- [Passo 6: Verificação do resultado](#passo-6:-verificação-do-resultado)
-- [Passo 7: Troubleshooting](#passo-7:-troubleshooting)
+- [Passo 2: Preparação do Raspberry Pi 5](#passo-2-preparação-do-raspberry-pi-5)
+- [Passo 3: Compilação e gravação do firmware](#passo-3-compilação-e-gravação-do-firmware-esp32-s3)
+- [Passo 4: Configuração do sistema](#passo-4-configuração-do-sistema)
+- [Passo 5: Execução](#passo-5-execução)
+- [Passo 6: Verificação do resultado](#passo-6-verificação-do-resultado)
+- [Passo 7: Troubleshooting](#passo-7-troubleshooting)
 
 ---
 
