@@ -53,7 +53,7 @@ os.environ.setdefault("ENABLE_ESP32", "0")
 
 
 from model import get_default_model_name
-from beirada_ia.app.preprocessing.preprocessor import CONFIG_DEFAULT
+from preprocessing.preprocessor import CONFIG_DEFAULT
 from schemas import PredictRequest
 
 from app import _decode_image, _run_stream_or_camera_only, app, stream_camera
