@@ -310,7 +310,7 @@ Para cada servo, siga a tabela de pinagem da [seção 4](#4-tabela-de-pinagem):
 
 | Elemento | Posicionamento |
 |---|---|
-| Servomotor | A aproximadamente **X cm** da esteira de destino, no lado **oposto** ao desvio, de modo que o braço empurre a peça para fora da esteira principal |
+| Servomotor | No lado **oposto** ao desvio, de modo que o braço empurre a peça para fora da esteira principal |
 | Sensor de entrada | Logo **antes** do servo, inclinado a **90°** em relação à esteira, no mesmo sentido de movimento, de forma a acompanhar a peça até que seja desviada |
 | Sensor de saída | Na **esteira perpendicular**, posicionado para detectar a peça já transferida |
 
@@ -329,8 +329,6 @@ A câmera deve ser instalada de forma que seu campo de visão cubra a região da
 > **[IMAGEM: POSICIONAMENTO DA CÂMERA]**
 >
 > **Adicionar:** foto da montagem mostrando a câmera em relação à esteira, com altura, inclinação, distância até a região de detecção, área enquadrada e sentido de movimento da esteira.
->
-> **Medidas da montagem final:** altura **X cm** · distância **Y cm** · inclinação **Z°**.
 
 ---
 
@@ -388,8 +386,6 @@ pip install -r app/requirements.txt
 ```
 
 Para confirmar que o ambiente virtual está ativo, o terminal deverá exibir `(.venv)` no início da linha de comando.
-
-> **(inserir imagem do (.venv)**?
 
 Após concluir a instalação, mantenha o ambiente virtual ativado enquanto forem executados diretamente comandos Python da aplicação. Os serviços executados por Docker utilizam as dependências definidas na própria imagem/container.
 
