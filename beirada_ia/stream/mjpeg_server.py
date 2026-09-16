@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """
 stream/mjpeg_server.py — Serve o stream YOLO anotado como MJPEG via HTTP.
 Acesse no navegador: http://<IP_DO_RASPBERRY>:5000/stream

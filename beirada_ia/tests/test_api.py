@@ -14,11 +14,12 @@ import os
 import sys
 import threading
 from pathlib import Path
+from typing import ClassVar
 
 import numpy as np
 import pytest
 from fastapi.testclient import TestClient
-from PIL import Image
+from PIL import Image, UnidentifiedImageError
 
 
 class GrafanaCloudExporter:
@@ -89,7 +90,7 @@ def test_publish_detection_metrics_filters_to_supported_project_classes():
     app_module = importlib.import_module("app")
 
     class FakeModel:
-        names = ["serrote", "martelo", "parafuso", "estilete", "caminhao"]
+        names: ClassVar[list[str]] = ["serrote", "martelo", "parafuso", "estilete", "caminhao"]
 
     class FakeBox:
         def __init__(self, cls_id, confidence):
@@ -214,7 +215,7 @@ class TestDecodeImage:
 
 
     def test_invalid_base64_raises(self):
-        with pytest.raises(Exception):
+        with pytest.raises(UnidentifiedImageError):
             _decode_image("dado_invalido_nao_e_base64")
 
 

@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """
 stream/v1_naive.py — Implementação ingênua: diagnóstico de FPS e latência.
 Execução: python3 stream/v1_naive.py --device 0 --width 1352 --height 720
@@ -105,7 +104,7 @@ def main():
 
 
         # ── Etapa 2: inferência ──────────────────────────────
-        results = model(frame, conf=args.conf, verbose=False)
+        model(frame, conf=args.conf, verbose=False)
         t2 = time.perf_counter()
 
 

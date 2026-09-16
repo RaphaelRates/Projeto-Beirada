@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """
 stream/v3_optimized.py — Pipeline otimizado para tempo real no Raspberry Pi 5.
 Combina threading, frame skip, resolução adaptativa e OSD.

@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """
 stream/v2_threaded.py — Captura e inferência em threads separadas.
 Buffer de 1 frame elimina o acúmulo e garante processamento do frame atual.
@@ -195,7 +194,7 @@ def main():
             continue
 
 
-        annotated, n_det, infer_ms = yolo.run(frame)
+        _annotated, n_det, infer_ms = yolo.run(frame)
         frame_count += 1
 
 

@@ -27,8 +27,8 @@ def letterbox(
 
     # Fator de escala: limitar pela dimensão maior
     scale = min(target_size / h, target_size / w)
-    new_w = int(round(w * scale))
-    new_h = int(round(h * scale))
+    new_w = round(w * scale)
+    new_h = round(h * scale)
 
 
     # Redimensiona mantendo proporção

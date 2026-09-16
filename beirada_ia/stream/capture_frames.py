@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """
 stream/capture_frames.py
 Captura frames do stream de câmera e os salva em dataset/raw/.
@@ -13,7 +12,7 @@ import argparse
 import subprocess
 import time
 import urllib.request
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 
 import cv2
@@ -188,7 +187,7 @@ def main():
 
 
             # Nome com timestamp para evitar colisões
-            ts = datetime.now().strftime("%Y%m%d_%H%M%S_%f")[:-3]
+            ts = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S_%f")[:-3]
             path = OUTPUT_DIR / f"frame_{ts}.jpg"
             cv2.imwrite(str(path), frame, [cv2.IMWRITE_JPEG_QUALITY, 92])
             saved += 1

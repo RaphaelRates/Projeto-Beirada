@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """
 stream/raw_server.py — Preview MJPEG bruto, sem inferência YOLO.
 
