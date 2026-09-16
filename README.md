@@ -367,7 +367,34 @@ sudo apt update && sudo apt install -y git python3-pip
 pip install dvc --break-system-packages
 ```
 
-### 2.5 Liberar acesso à porta serial
+### 2.5 Criar o ambiente virtual e instalar as dependências Python
+
+As dependências Python da aplicação estão concentradas em `app/requirements.txt`. Recomenda-se utilizar um ambiente virtual para evitar conflitos com os pacotes instalados globalmente no sistema.
+
+Instale o suporte a ambientes virtuais, crie o ambiente e ative-o:
+
+```bash
+sudo apt install -y python3-venv
+
+cd ~/Projeto-Beirada
+python3 -m venv .venv
+source .venv/bin/activate
+```
+
+Com o ambiente virtual ativado, instale as dependências do projeto:
+
+```bash
+pip install --upgrade pip
+pip install -r app/requirements.txt
+```
+
+Para confirmar que o ambiente virtual está ativo, o terminal deverá exibir `(.venv)` no início da linha de comando.
+
+> **(inserir imagem do (.venv)**?
+
+Após concluir a instalação, mantenha o ambiente virtual ativado enquanto forem executados diretamente comandos Python da aplicação. Os serviços executados por Docker utilizam as dependências definidas na própria imagem/container.
+
+### 2.6 Liberar acesso à porta serial
 
 ```bash
 sudo usermod -aG dialout $USER
