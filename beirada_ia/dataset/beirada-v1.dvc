@@ -1,0 +1,6 @@
+outs:
+- md5: 6ddd343f52c6e086c56b363a5e8aadc5.dir
+  size: 27782620
+  nfiles: 5209
+  hash: md5
+  path: beirada-v1
