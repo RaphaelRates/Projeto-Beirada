@@ -127,6 +127,47 @@ def test_publish_detection_metrics_filters_to_supported_project_classes():
     ]
 
 
+def test_publish_detection_metrics_requires_three_repeated_track_hits_before_esp_signal(monkeypatch):
+    app_module = importlib.import_module("app")
+    sent = []
+    monkeypatch.setattr(app_module, "enviar", lambda msg: sent.append(msg))
+
+    class FakeModel:
+        names: ClassVar[list[str]] = ["serrote", "martelo", "parafuso", "estilete", "caminhao"]
+
+    class FakeTensor:
+        def __init__(self, value):
+            self._value = value
+
+        def __getitem__(self, _):
+            return self
+
+        def item(self):
+            return self._value
+
+    class FakeBox:
+        def __init__(self, cls_id, confidence, track_id=None):
+            self.cls = [FakeTensor(cls_id)]
+            self.conf = [FakeTensor(confidence)]
+            self.id = [FakeTensor(track_id)] if track_id is not None else None
+
+    class FakeResult:
+        def __init__(self, boxes):
+            self.boxes = boxes
+
+    fake_results = [
+        FakeResult([FakeBox(1, 0.90, track_id=7)]),
+        FakeResult([FakeBox(1, 0.91, track_id=7)]),
+        FakeResult([FakeBox(1, 0.92, track_id=7)]),
+        FakeResult([FakeBox(1, 0.93, track_id=7)]),
+    ]
+
+    tracker = app_module.DetectionTracker()
+    app_module._publish_detection_metrics(FakeModel(), fake_results, logged_objects=tracker)
+
+    assert sent == ["1"]
+
+
 def test_default_api_confidence_and_preprocess_infer_size():
     assert PredictRequest().confidence == 0.70
     assert CONFIG_DEFAULT.infer_size == 352

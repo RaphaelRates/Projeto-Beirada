@@ -53,6 +53,32 @@ STREAM_FPS = Gauge("yolo_stream_fps","Taxa de quadros por segundo entregues pelo
 ESP32_CONNECTED = Gauge("yolo_esp32_connected","1 se o ESP32 está conectado, 0 caso contrário",)
 
 _MONITORED_CLASSES = {"serrote","martelo","parafuso","estilete",}
+_ESP32_CONFIRMATION_HITS = 3
+
+
+class DetectionTracker:
+    """Mantém contagem de detecções por objeto rastreado para evitar ruído no ESP32."""
+
+    def __init__(self):
+        self._counts = {}
+        self._emitted = set()
+
+    def should_emit(self, cls_name: str, track_id):
+        if track_id is None:
+            return False
+
+        key = (cls_name, int(track_id))
+        self._counts[key] = self._counts.get(key, 0) + 1
+
+        if self._counts[key] < _ESP32_CONFIRMATION_HITS:
+            return False
+
+        if key in self._emitted:
+            return False
+
+        self._emitted.add(key)
+        return True
+
 
 app = FastAPI(
     title="YOLO Inference API",
@@ -217,6 +243,9 @@ def _publish_detection_metrics(model, results, logged_objects=None):
     (contagem e percentual) -- como são Gauges, sem isso o Grafana ficaria
     mostrando o último valor visto, mesmo que o objeto já tenha saído do
     campo de visão da câmera.
+
+    Para o ESP32, só enviamos a classe quando o mesmo objeto rastreado for
+    detectado 3 vezes no stream. Isso evita ruído de envio por frame.
     """
     counts = {cls: 0 for cls in _MONITORED_CLASSES}
     confidence_sums = {cls: 0.0 for cls in _MONITORED_CLASSES}
@@ -231,10 +260,20 @@ def _publish_detection_metrics(model, results, logged_objects=None):
             if getattr(box, "id", None) is not None:
                 track_id = int(box.id[0].item())
 
-            object_key = (cls_name, track_id)
-            should_log = (logged_objects is None or (track_id is not None and object_key not in logged_objects))
-            
-            if should_log:
+            should_emit_to_esp = False
+            if logged_objects is not None:
+                if hasattr(logged_objects, "should_emit"):
+                    should_emit_to_esp = logged_objects.should_emit(cls_name, track_id)
+                elif track_id is not None and isinstance(logged_objects, dict):
+                    counts_key = (cls_name, track_id)
+                    logged_objects.setdefault("_counts", {})
+                    logged_objects.setdefault("_emitted", set())
+                    logged_objects["_counts"][counts_key] = logged_objects["_counts"].get(counts_key, 0) + 1
+                    if logged_objects["_counts"][counts_key] >= _ESP32_CONFIRMATION_HITS and counts_key not in logged_objects["_emitted"]:
+                        logged_objects["_emitted"].add(counts_key)
+                        should_emit_to_esp = True
+
+            if should_emit_to_esp:
                 match cls_name:
                     case "martelo":
                         enviar("1")
@@ -244,9 +283,7 @@ def _publish_detection_metrics(model, results, logged_objects=None):
                         enviar("3")
                     case "serrote":
                         enviar("4")
-                log_event("object_detected",class_name=cls_name,confidence=round(conf_val, 4),track_id=track_id,)
-                if logged_objects is not None and track_id is not None:
-                    logged_objects.add(object_key)
+                log_event("object_detected", class_name=cls_name, confidence=round(conf_val, 4), track_id=track_id)
 
             if cls_name not in _MONITORED_CLASSES:
                 continue
@@ -698,7 +735,7 @@ async def stream_camera(
     except Exception as exc:
         log_event("stream_yolo_load_failed",level="WARN",model=model_name,reason=str(exc),)
 
-    logged_objects = set()
+    logged_objects = DetectionTracker()
     MAX_BUFFER_SIZE = 5 * 1024 * 1024  # 5 MB
 
     def run_inference(frame):
