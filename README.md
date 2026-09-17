@@ -714,7 +714,7 @@ curl -X POST http://localhost:8000/predict/camera \
 
 **Esperado:** um JSON com o array `detections`; cada item com `label`, `confidence` e `bbox` quando houver peça na câmera.
 
-### 6.3 Streaming — resultado visual da detecção
+### 6.3 Streaming - resultado visual da detecção
 
 Acesse pelo navegador de outra máquina da mesma rede (descubra o IP com o [Passo 4.5](#45-descobrir-o-ip-da-raspberry-pi)):
 
@@ -775,8 +775,11 @@ Coloque uma peça de teste na esteira e acompanhe o ciclo completo:
 
 Para uma peça da **classe 4**, o teste deve confirmar que ela permanece no trajeto principal, sem acionamento de servo.
 
-> **[GIF: CICLO COMPLETO]**
-> Adicionar: registro do ciclo completo, desde a peça na esteira e sua detecção até o desvio pelo servo.
+<p align="left">
+    <img src="docs/imagens/teste.gif"
+        alt="Separação em acção"
+        width="700">
+</p>
 
 ### 6.7 Testes automatizados
 
