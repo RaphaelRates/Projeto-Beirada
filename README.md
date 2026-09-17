@@ -133,6 +133,7 @@ A alimentação é realizada pela fonte externa de 5 V, com capacidade mínima d
         alt="Proto"
         width="700">
 </p>
+
 ---
 
 ## 4. Tabela de pinagem
