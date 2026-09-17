@@ -113,6 +113,8 @@ flowchart LR
 
 **(TBD)**
 
+### 3.1 Montagem na protoboard
+
 ---
 
 ## 4. Tabela de pinagem
@@ -738,9 +740,6 @@ Comando serial recebido → peça enfileirada → sensor de entrada detectado
 ```
 
 Para uma peça das classes **1, 2 ou 3**, deve ocorrer o acionamento do servo correspondente. A classe **4** não possui servo associado e deve seguir diretamente pela esteira.
-
-> **[IMAGEM: LOGS DO ESP32-S3]**
-> Adicionar: trecho do monitor serial mostrando o recebimento de uma classe, o acionamento do servo e a confirmação pelo sensor de saída.
 
 ### 6.6 Teste ponta a ponta
 
