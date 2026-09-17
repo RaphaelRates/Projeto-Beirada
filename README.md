@@ -387,7 +387,7 @@ Pillow==10.3.0
 ## Passo 1: Montagem física do hardware
 
 <p align="left">
-    <img src="docs/box.jpg"
+    <img src="docs/box.png"
         alt="box"
         width="700">
 </p>
