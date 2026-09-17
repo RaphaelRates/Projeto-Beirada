@@ -388,9 +388,13 @@ Pillow==10.3.0
 
 <p align="left">
     <img src="docs/imagens/setup.jpg"
-        alt="Setup"
+        alt="box"
         width="700">
 </p>
+
+- Em vermelho: sensores de entrada.
+- Em azul: sensores de saída.
+- Em preto: servos.
 
 ### 1.1 Preparar os barramentos de energia
 
