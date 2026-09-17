@@ -120,9 +120,13 @@ flowchart LR
 A protoboard é utilizada como ponto de distribuição da alimentação e de referência de terra entre os componentes do sistema. Os sensores E18-D80NK e os servomotores possuem suas conexões de alimentação ligadas aos barramentos correspondentes da protoboard.
 
 Barramento positivo (+): conectado à saída de +5 V da fonte externa, fornecendo alimentação aos sensores e aos servomotores.
+
 Barramento negativo (−): conectado ao GND da fonte externa e ao GND do ESP32-S3, estabelecendo uma referência de terra comum para o sistema.
+
 Sensores E18-D80NK: cada sensor possui alimentação conectada aos barramentos de +5 V e GND, enquanto o pino de saída é conectado ao respectivo GPIO do ESP32-S3.
+
 Servomotores: cada servo recebe +5 V e GND através da protoboard, enquanto o fio de sinal é conectado ao GPIO correspondente do ESP32-S3.
+
 ESP32-S3: utiliza a protoboard para compartilhar a referência de GND e realizar as conexões de sinal com os sensores e servomotores.
 
 A alimentação é realizada pela fonte externa de 5 V, com capacidade mínima de 3 A.
