@@ -386,7 +386,11 @@ Pillow==10.3.0
 
 ## Passo 1: Montagem física do hardware
 
-**(IMAGEM: foto da montagem real completa, vista de cima, com os componentes identificados por etiquetas numeradas.)**
+<p align="left">
+    <img src="docs/imagens/setup.jpg"
+        alt="Setup"
+        width="700">
+</p>
 
 ### 1.1 Preparar os barramentos de energia
 
