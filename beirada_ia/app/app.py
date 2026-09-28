@@ -5,6 +5,7 @@ import io
 import json
 import os
 import subprocess
+import threading
 import time
 import uuid
 from pathlib import Path
@@ -12,7 +13,7 @@ from pathlib import Path
 import cv2
 import httpx
 import numpy as np
-from core.esp32 import enviar, iniciar
+import serial
 from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.responses import HTMLResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
@@ -20,7 +21,7 @@ from fastapi.templating import Jinja2Templates
 from model import get_default_model_name, load_model
 from PIL import Image
 from preprocessing.preprocessor import CONFIG_DEFAULT, Preprocessor
-from prometheus_client import Counter, Gauge, Histogram, start_http_server
+from prometheus_client import Counter, Gauge, start_http_server
 from schemas import (
     Detection,
     HealthResponse,
@@ -43,18 +44,41 @@ except Exception:
     pass
 
 
-if os.getenv("ENABLE_ESP32", "1") == "1":
-    iniciar(SERIAL_PORT, BAUD)
-
 INFERENCE_TIME = Gauge("yolo_inference_time_seconds","Tempo de inferência do YOLO em segundos (última execução)",)
 DETECTIONS_BY_CLASS_TOTAL = Counter("yolo_detections_by_class_total","Total cumulativo de objetos detectados pelo YOLO por classe",["class_name"],)
 DETECTIONS_COUNT_BY_CLASS = Gauge("yolo_detections_count_by_class","Quantidade de objetos da classe detectados na última inferência ""(zerado explicitamente quando a classe não aparece mais no frame)",["class_name"],)
 DETECTION_CLASS_PERCENTAGE = Gauge("yolo_detection_class_percentage","Percentual (0-100) que a classe representa do total de detecções ""monitoradas na última inferência", ["class_name"],)
-DETECTION_CONFIDENCE = Gauge("yolo_detection_confidence_last","Última confiança média observada por classe na última inferência",["class_name"],)
-DETECTION_CONFIDENCE_HISTOGRAM = Histogram( "yolo_detection_confidence","Distribuição de confiança das detecções por classe ""(use para média/percentis por classe ao longo do tempo no Grafana)",["class_name"],buckets=[0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.70, 0.7, 0.75, 0.8, 0.85, 0.9, 0.95, 1.0],)
 STREAM_ACTIVE = Gauge("yolo_stream_active","1 se há um stream de câmera em andamento, 0 caso contrário",)
 STREAM_FPS = Gauge("yolo_stream_fps","Taxa de quadros por segundo entregues pelo stream (média móvel simples)",)
+ESP32_CONNECTED = Gauge("yolo_esp32_connected","1 se o ESP32 está conectado, 0 caso contrário",)
+
 _MONITORED_CLASSES = {"serrote","martelo","parafuso","estilete",}
+_ESP32_CONFIRMATION_HITS = 3
+
+
+class DetectionTracker:
+    """Mantém contagem de detecções por objeto rastreado para evitar ruído no ESP32."""
+
+    def __init__(self):
+        self._counts = {}
+        self._emitted = set()
+
+    def should_emit(self, cls_name: str, track_id):
+        if track_id is None:
+            return False
+
+        key = (cls_name, int(track_id))
+        self._counts[key] = self._counts.get(key, 0) + 1
+
+        if self._counts[key] < _ESP32_CONFIRMATION_HITS:
+            return False
+
+        if key in self._emitted:
+            return False
+
+        self._emitted.add(key)
+        return True
+
 
 app = FastAPI(
     title="YOLO Inference API",
@@ -66,6 +90,84 @@ _metrics = {"total": 0, "success": 0, "total_ms": 0.0}
 _metrics_file = Path("/tmp/beirada_metrics.json")
 _metrics_lock_file = Path("/tmp/beirada_metrics.lock")
 _streaming_lock = asyncio.Lock()
+
+_ser = None
+_lock = threading.Lock()
+_monitor_thread = None
+_stop_monitor = threading.Event()
+_porta = "/dev/ttyUSB0"
+_baud = 115200
+_INTERVALO_VERIFICACAO = 3
+
+def iniciar(porta="/dev/ttyUSB0", baud=115200):
+    """Inicia a conexão e monitora o ESP32 continuamente."""
+    global _monitor_thread, _porta, _baud
+    _porta = porta
+    _baud = baud
+    _stop_monitor.clear()
+
+    _tentar_conectar()
+
+    if _monitor_thread is None or not _monitor_thread.is_alive():
+        _monitor_thread = threading.Thread(
+            target=_monitorar_conexao,
+            name="esp32-connection-monitor",
+            daemon=True,
+        )
+        _monitor_thread.start()
+
+
+def _tentar_conectar():
+    global _ser
+    try:
+        with _lock:
+            if _ser is not None and _ser.is_open:
+                print("[ESP32] Conexão verificada.")
+                return True
+
+            _ser = serial.Serial(_porta, _baud, timeout=0.1)
+
+        time.sleep(2)   # aguarda ESP32 bootar após abrir a porta
+        print(f"[ESP32] Conectado em {_porta} @ {_baud}")
+        ESP32_CONNECTED.set(1)
+        enviar("80")
+        return True
+    except (serial.SerialException, OSError) as e:
+        with _lock:
+            _ser = None
+        print(f"[ESP32] Sem conexão. Nova tentativa em {_INTERVALO_VERIFICACAO}s: {e}")
+        ESP32_CONNECTED.set(0)
+        return False
+
+
+def _monitorar_conexao():
+    while not _stop_monitor.wait(_INTERVALO_VERIFICACAO):
+        _tentar_conectar()
+
+def enviar(msg: str):
+    """Envia uma string + '\\n' para o ESP32. Não bloqueia se a serial cair."""
+    global _ser
+    try:
+        with _lock:   # evita escrita concorrente entre threads
+            if _ser is None or not _ser.is_open:
+                return
+            _ser.write((msg + "\n").encode("utf-8"))
+    except (serial.SerialException, OSError) as e:
+        print(f"[ESP32] Erro ao enviar: {e}")
+        with _lock:
+            _ser = None
+
+def fechar():
+    global _ser
+    _stop_monitor.set()
+    with _lock:
+        if _ser and _ser.is_open:
+            _ser.close()
+        _ser = None
+
+
+if os.getenv("ENABLE_ESP32", "1") == "1":
+    iniciar(SERIAL_PORT, BAUD)
 
 def _metrics_default():
     return {"total": 0, "success": 0, "total_ms": 0.0}
@@ -141,6 +243,9 @@ def _publish_detection_metrics(model, results, logged_objects=None):
     (contagem e percentual) -- como são Gauges, sem isso o Grafana ficaria
     mostrando o último valor visto, mesmo que o objeto já tenha saído do
     campo de visão da câmera.
+
+    Para o ESP32, só enviamos a classe quando o mesmo objeto rastreado for
+    detectado 3 vezes no stream. Isso evita ruído de envio por frame.
     """
     counts = {cls: 0 for cls in _MONITORED_CLASSES}
     confidence_sums = {cls: 0.0 for cls in _MONITORED_CLASSES}
@@ -155,22 +260,30 @@ def _publish_detection_metrics(model, results, logged_objects=None):
             if getattr(box, "id", None) is not None:
                 track_id = int(box.id[0].item())
 
-            object_key = (cls_name, track_id)
-            should_log = (logged_objects is None or (track_id is not None and object_key not in logged_objects))
-            
-            if should_log:
+            should_emit_to_esp = False
+            if logged_objects is not None:
+                if hasattr(logged_objects, "should_emit"):
+                    should_emit_to_esp = logged_objects.should_emit(cls_name, track_id)
+                elif track_id is not None and isinstance(logged_objects, dict):
+                    counts_key = (cls_name, track_id)
+                    logged_objects.setdefault("_counts", {})
+                    logged_objects.setdefault("_emitted", set())
+                    logged_objects["_counts"][counts_key] = logged_objects["_counts"].get(counts_key, 0) + 1
+                    if logged_objects["_counts"][counts_key] >= _ESP32_CONFIRMATION_HITS and counts_key not in logged_objects["_emitted"]:
+                        logged_objects["_emitted"].add(counts_key)
+                        should_emit_to_esp = True
+
+            if should_emit_to_esp:
                 match cls_name:
                     case "martelo":
-                        enviar("1\n")
-                    case "parafuso":
-                        enviar("2\n")
+                        enviar("1")
                     case "estilete":
-                        enviar("3\n")
+                        enviar("2")
+                    case "parafuso":
+                        enviar("3")
                     case "serrote":
-                        enviar("4\n")
-                log_event("object_detected",class_name=cls_name,confidence=round(conf_val, 4),track_id=track_id,)
-                if logged_objects is not None and track_id is not None:
-                    logged_objects.add(object_key)
+                        enviar("4")
+                log_event("object_detected", class_name=cls_name, confidence=round(conf_val, 4), track_id=track_id)
 
             if cls_name not in _MONITORED_CLASSES:
                 continue
@@ -179,7 +292,6 @@ def _publish_detection_metrics(model, results, logged_objects=None):
             counts[cls_name] += 1
             confidence_sums[cls_name] += conf_val
             DETECTIONS_BY_CLASS_TOTAL.labels(cls_name).inc()
-            DETECTION_CONFIDENCE_HISTOGRAM.labels(cls_name).observe(conf_val)
 
     total_monitored = sum(counts.values())
 
@@ -188,9 +300,6 @@ def _publish_detection_metrics(model, results, logged_objects=None):
 
         percentage = (count / total_monitored * 100) if total_monitored > 0 else 0.0
         DETECTION_CLASS_PERCENTAGE.labels(cls_name).set(round(percentage, 2))
-
-        avg_confidence = (confidence_sums[cls_name] / count) if count > 0 else 0.0
-        DETECTION_CONFIDENCE.labels(cls_name).set(round(avg_confidence, 4))
 
     return [
         {"class": cls_name, "confidence": round(confidence, 4)}
@@ -372,7 +481,7 @@ async def stream_camera(
     except Exception as exc:
         log_event("stream_yolo_load_failed",level="WARN",model=model_name,reason=str(exc),)
 
-    logged_objects = set()
+    logged_objects = DetectionTracker()
     MAX_BUFFER_SIZE = 5 * 1024 * 1024  # 5 MB
 
     def run_inference(frame):

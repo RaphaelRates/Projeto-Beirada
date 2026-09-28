@@ -18,16 +18,18 @@
 5. [Componentes da Solução](#5-componentes-da-solução)
 6. [Estrutura das Pastas](#6-estrutura-das-pastas)
 7. [Protocolo de comunicação RPi ↔ ESP32](#7-protocolo-de-comunicação-rpi--esp32)
+8. [Dependências](#8-dependências)
 
 **Parte II: Manual de replicação**
-8. [Pré-requisitos](#pré-requisitos)
-9. [Passo 1: Montagem física do hardware](#passo-1-montagem-física-do-hardware)
-10. [Passo 2: Preparação do Raspberry Pi 5](#passo-2-preparação-do-raspberry-pi-5)
-11. [Passo 3: Compilação e gravação do firmware](#passo-3-compilação-e-gravação-do-firmware-esp32-s3)
-12. [Passo 4: Configuração do sistema](#passo-4-configuração-do-sistema)
-13. [Passo 5: Execução](#passo-5-execução)
-14. [Passo 6: Verificação do resultado](#passo-6-verificação-do-resultado)
-15. [Passo 7: Troubleshooting](#passo-7-troubleshooting)
+
+- [Pré-requisitos](#pré-requisitos)
+- [Passo 1: Montagem física do hardware](#passo-1-montagem-física-do-hardware)
+- [Passo 2: Preparação do Raspberry Pi 5](#passo-2-preparação-do-raspberry-pi-5)
+- [Passo 3: Compilação e gravação do firmware](#passo-3-compilação-e-gravação-do-firmware-esp32-s3)
+- [Passo 4: Configuração do sistema](#passo-4-configuração-do-sistema)
+- [Passo 5: Execução](#passo-5-execução)
+- [Passo 6: Verificação do resultado](#passo-6-verificação-do-resultado)
+- [Passo 7: Troubleshooting](#passo-7-troubleshooting)
 
 ---
 
@@ -109,14 +111,66 @@ flowchart LR
 
 ## 3. Esquemático elétrico
 
-**(TBD)**
+<p align="left">
+    <img src="docs/imagens/esquema.jpg"
+        alt="Esquemático elétrico"
+        width="700">
+</p>
+
+A protoboard é utilizada como ponto de distribuição da alimentação e de referência de terra entre os componentes do sistema. Os sensores E18-D80NK e os servomotores possuem suas conexões de alimentação ligadas aos barramentos correspondentes da protoboard.
+
+- Barramento positivo (+): conectado à saída de +5 V da fonte externa, fornecendo alimentação aos sensores e aos servomotores.
+- Barramento negativo (−): conectado ao GND da fonte externa e ao GND do ESP32-S3, estabelecendo uma referência de terra comum para o sistema.
+- Sensores E18-D80NK: cada sensor possui alimentação conectada aos barramentos de +5 V e GND, enquanto o pino de saída é conectado ao respectivo GPIO do ESP32-S3.
+- Servomotores: cada servo recebe +5 V e GND através da protoboard, enquanto o fio de sinal é conectado ao GPIO correspondente do ESP32-S3.
+- ESP32-S3: utiliza a protoboard para compartilhar a referência de GND e realizar as conexões de sinal com os sensores e servomotores.
+
+A alimentação é realizada pela fonte externa de 5 V, com capacidade mínima de 3 A.
+
+### 3.1 Montagem na protoboard
+<p align="left">
+    <img src="docs/imagens/montagem-real.jpg"
+        alt="Proto"
+        width="700">
+</p>
 
 ---
 
 ## 4. Tabela de pinagem
 
-**(TBD)**
+Valores definidos em [`beirada_esp/ledc_basic/main/servo.h`](beirada_esp/ledc_basic/main/servo.h). Alterar o hardware exige editar esse arquivo e recompilar o firmware.
 
+### Servomotores (saída PWM via periférico LEDC)
+
+| Constante | GPIO | Canal LEDC | Posição na esteira |
+|---|---|---|---|
+| `SERVO1_GPIO` | 20 | `LEDC_CHANNEL_0` | Desvio 1 |
+| `SERVO2_GPIO` | 7  | `LEDC_CHANNEL_1` | Desvio 2 |
+| `SERVO3_GPIO` | 26 | `LEDC_CHANNEL_2` | Desvio 3 |
+
+### Sensores ópticos E18-D80NK (entrada digital, pull-up interno)
+
+| Constante | GPIO | Função |
+|---|---|---|
+| `SENSOR1_ENTRADA_GPIO` | 4  | Dispara o servo 1 |
+| `SENSOR2_ENTRADA_GPIO` | 38 | Dispara o servo 2 |
+| `SENSOR3_ENTRADA_GPIO` | 39 | Dispara o servo 3 |
+| `SENSOR1_SAIDA_GPIO`   | 5  | Confirma transferência e recolhe o servo 1 |
+| `SENSOR2_SAIDA_GPIO`   | 16 | Confirma transferência e recolhe o servo 2 |
+| `SENSOR3_SAIDA_GPIO`   | 17 | Confirma transferência e recolhe o servo 3 |
+
+**Lógica de leitura:** nível **LOW (0) = objeto detectado**. O E18-D80NK é NPN normalmente aberto; com pull-up interno habilitado, o pino repousa em HIGH e vai a LOW quando o feixe é interrompido.
+
+### Parâmetros de PWM
+
+| Parâmetro | Valor | Observação |
+|---|---|---|
+| Frequência | 50 Hz | Padrão de servos hobby |
+| Resolução | 14 bits (`LEDC_TIMER_14_BIT`) | Duty máximo 16383 |
+| Pulso mínimo | 500 µs | Corresponde a 0° |
+| Pulso máximo | 2500 µs | Corresponde a 180° |
+| Repouso | 90° | Braço paralelo à esteira |
+| Acionado | 150° (servo 2: 50°) | O servo 2 é espelhado por estar no lado oposto |
 ---
 
 ## 5. Componentes da Solução
@@ -132,7 +186,7 @@ flowchart LR
 ### Software
 | Camada | Tecnologia | Versão | Função |
 |---|---|---|---|
-| Modelo de IA | yolo-epi (Ultralytics) | 8.2.0 | Detecção e classificação das peças em tempo real |
+| Modelo de IA | Ultralytics YOLOv8n | 8.2.0 | Detecção e classificação das peças em tempo real |
 | API de inferência | FastAPI + Uvicorn | 0.111.0 / 0.29.0 | Expõe `/predict`, `/predict/image`, `/predict/batch`, `/health`, `/metrics` |
 | Streaming | Flask | 3.1.3 | Servidor MJPEG com detecções sobrepostas (`stream/mjpeg_server.py`) |
 | Pré-processamento | OpenCV + Pillow + NumPy | 4.9.0.80 / 11.0.0 / 1.26.4 | Letterbox, resize e filtros de imagem antes da inferência |
@@ -154,7 +208,6 @@ Projeto-Beirada/
 │   └── beirada_deploy.yml      # CI/CD
 │
 ├── docs/
-│   ├── esquematicos/           # Arquivos-fonte (.fzz / .kicad_sch)
 │   └── imagens/                # Imagens e gifs do README
 │
 ├── beirada_esp/                # -- FIRMWARE (ESP32-S3) --
@@ -248,6 +301,50 @@ screen /dev/ttyACM0 115200      # sair: Ctrl+A depois K
 
 ---
 
+---
+
+## 8. Dependências
+
+Lista exata dos pacotes usados pelo projeto — útil para auditoria ou para reproduzir o ambiente fora do Docker. Para o que precisa estar instalado no sistema operacional antes de começar, veja [Pré-requisitos](#pré-requisitos).
+
+### Python — API e streaming (`beirada_ia/app/requirements.txt`)
+
+```
+fastapi==0.111.0
+uvicorn[standard]==0.29.0
+ultralytics==8.2.0
+Pillow==11.0.0
+numpy==1.26.4
+httpx==0.27.0
+opencv-python-headless==4.9.0.80
+flask==3.1.3
+pyserial==3.5.0
+```
+
+### Python — cliente de teste (`beirada_ia/client/requirements.txt`)
+
+```
+httpx==0.27.0
+Pillow==10.3.0
+```
+
+### Firmware — ESP32-S3
+
+- **ESP-IDF** ≥ 5.0 (framework oficial Espressif)
+- **FreeRTOS** — já incluso no ESP-IDF
+- Driver **LEDC** — controle de PWM dos servomotores (parte do ESP-IDF, sem instalação extra)
+
+### Ferramentas externas
+
+| Ferramenta | Onde é usada | Instalação |
+|---|---|---|
+| Docker + Docker Compose | Orquestra `yolo-api`, `yolo-stream`, `yolo-client` | [Passo 2.3](#23-instalar-docker-e-docker-compose) |
+| DVC | Versiona os pesos do modelo (`.pt`) fora do Git | [Passo 2.4](#24-instalar-git-openssh-e-dvc) |
+| rpicam-apps | Captura via câmera CSI na Raspberry Pi | Já vem no Raspberry Pi OS |
+| ESP-IDF | Compila e grava o firmware do ESP32-S3 | [Passo 3.1](#31-instalar-o-esp-idf) |
+
+> As dependências Python de dentro dos contêineres Docker (`yolo-api`, `yolo-stream`) são instaladas automaticamente pelo `Dockerfile.api` durante o `docker compose up --build` - a lista acima é só para quem for rodar fora do Docker ou auditar versões.
+
 # PARTE 2: MANUAL DE REPLICAÇÃO
 
 ## Pré-requisitos
@@ -261,7 +358,7 @@ screen /dev/ttyACM0 115200      # sair: Ctrl+A depois K
 - [ ] Cabo USB-C de dados (atenção: cabos "só carga" não funcionam)
 - [ ] 3 servomotores (SG90, MG90S ou equivalente)
 - [ ] 6 sensores ópticos E18-D80NK
-- [ ] 2 protoboards + jumpers macho-macho e macho-fêmea
+- [ ] 1 protoboard + jumpers macho-macho e macho-fêmea
 - [ ] Fonte externa 5 V com no mínimo 3 A
 - [ ] Esteira transportadora com velocidade constante
 - [ ] Peças de teste entre 10 e 15 cm na maior dimensão
@@ -289,13 +386,20 @@ screen /dev/ttyACM0 115200      # sair: Ctrl+A depois K
 
 ## Passo 1: Montagem física do hardware
 
-**(IMAGEM: foto da montagem real completa, vista de cima, com os componentes identificados por etiquetas numeradas.)**
+<p align="left">
+    <img src="docs/box.png"
+        alt="box"
+        width="700">
+</p>
+
+- Em vermelho: sensores de entrada.
+- Em azul: sensores de saída.
+- Em preto: servos.
 
 ### 1.1 Preparar os barramentos de energia
 
-1. Na **protoboard 1**, conecte a fonte externa de 5 V aos trilhos de alimentação. Esta protoboard alimenta os servomotores.
-2. Na **protoboard 2**, faça o mesmo para os sensores.
-3. **Interligue o trilho GND das duas protoboards ao GND do ESP32-S3.** Sem esse terra comum nada funciona corretamente.
+1. Na **protoboard**, conecte a fonte externa de 5 V aos trilhos de alimentação. Faça o mesmo para os sensores, usando a mesma protoboard.
+2. **Interligue o trilho GND da protoboard ao GND do ESP32-S3.** Sem esse terra comum nada funciona corretamente.
 
 ### 1.2 Conectar os servomotores
 
@@ -311,17 +415,27 @@ Para cada servo, siga a tabela de pinagem da [seção 4](#4-tabela-de-pinagem):
 
 | Elemento | Posicionamento |
 |---|---|
-| Servomotor | A aproximadamente **X cm** da esteira de destino, no lado **oposto** ao desvio, de modo que o braço empurre a peça para fora da esteira principal |
-| Sensor de entrada | Logo **antes** do servo, inclinado a **Y°** em relação à esteira, no mesmo sentido de movimento, de forma a acompanhar a peça até que seja desviada |
+| Servomotor | No lado **oposto** ao desvio, de modo que o braço empurre a peça para fora da esteira principal |
+| Sensor de entrada | Logo **antes** do servo, inclinado a **90°** em relação à esteira, no mesmo sentido de movimento, de forma a acompanhar a peça até que seja desviada |
 | Sensor de saída | Na **esteira perpendicular**, posicionado para detectar a peça já transferida |
 
 ### 1.4 Conectar os sensores
 
 Cada E18-D80NK tem três fios:
 
-- **Marrom** → 5 V (protoboard)
+- **Marrom** → trilho 5 V da protoboard
 - **Azul** → GND
 - **Preto** (sinal OUT) → GPIO do ESP32-S3, conforme a tabela de pinagem
+
+### 1.5 Posicionar a câmera
+
+A câmera deve ser instalada de forma que seu campo de visão cubra a região da esteira utilizada para a detecção, mantendo as peças visíveis e com iluminação suficiente para a inferência.
+
+<p align="left">
+    <img src="docs/imagens/posicionamento-camera.jpg"
+        alt="Posição da camêra"
+        width="700">
+</p>
 
 ---
 
@@ -350,14 +464,52 @@ sudo usermod -aG docker $USER
 
 Faça **logout e login novamente** para que a mudança de grupo tenha efeito.
 
-### 2.4 Instalar Git e DVC
+### 2.4 Instalar Git, OpenSSH e DVC
+
+O DVC utiliza SSH quando o armazenamento remoto dos artefatos é um servidor acessível por SSH. Por isso, além do Git e do DVC, instale o cliente OpenSSH e o suporte SSH do DVC:
 
 ```bash
-sudo apt update && sudo apt install -y git python3-pip
-pip install dvc --break-system-packages
+sudo apt update
+sudo apt install -y git python3-pip openssh-client
+pip install "dvc[ssh]" --break-system-packages
 ```
 
-### 2.5 Liberar acesso à porta serial
+Confirme as instalações:
+
+```bash
+git --version
+ssh -V
+dvc --version
+```
+
+> O pacote `dvc[ssh]` inclui as dependências necessárias para utilizar remotes DVC via SSH.
+
+### 2.5 Criar o ambiente virtual e instalar as dependências Python
+
+As dependências Python da aplicação estão concentradas em `app/requirements.txt`. Recomenda-se utilizar um ambiente virtual para evitar conflitos com os pacotes instalados globalmente no sistema.
+
+Instale o suporte a ambientes virtuais, crie o ambiente e ative-o:
+
+```bash
+sudo apt install -y python3-venv
+
+cd ~/Projeto-Beirada
+python3 -m venv .venv
+source .venv/bin/activate
+```
+
+Com o ambiente virtual ativado, instale as dependências do projeto:
+
+```bash
+pip install --upgrade pip
+pip install -r app/requirements.txt
+```
+
+Para confirmar que o ambiente virtual está ativo, o terminal deverá exibir `(.venv)` no início da linha de comando.
+
+Após concluir a instalação, mantenha o ambiente virtual ativado enquanto forem executados diretamente comandos Python da aplicação. Os serviços executados por Docker utilizam as dependências definidas na própria imagem/container.
+
+### 2.6 Liberar acesso à porta serial
 
 ```bash
 sudo usermod -aG dialout $USER
@@ -397,12 +549,6 @@ Substitua `/dev/ttyACM0` pela porta do seu sistema (no Linux costuma ser `/dev/t
 ---
 
 ## Passo 4: Configuração do sistema
-
-### Mapa de configuração do sistema
-
-A tabela abaixo apresenta as principais configurações do projeto, os valores utilizados na implementação e o local em que devem ser alteradas caso seja necessário adaptar o ambiente.
-
-(colocar tabela)
 
 ### 4.1 Clonar o repositório
 
@@ -455,9 +601,28 @@ ls -l /dev/ttyACM* /dev/ttyUSB* 2>/dev/null
 
 Se for diferente de `/dev/ttyACM0`, ajuste **os dois lugares** no `docker-compose.yml`: a variável `ESP32_SERIAL_PORT` e o mapeamento em `devices:`.
 
-### 4.5 Grafana Cloud (opcional)
+### 4.5 Descobrir o IP da Raspberry Pi
 
-Para habilitar o envio de logs, preencha `beirada_ia/app/.env.grafana`:
+Para acessar a API, o streaming ou outros serviços da Raspberry Pi a partir de outra máquina na mesma rede, descubra o endereço IP da RPi com:
+
+```bash
+hostname -I
+```
+
+Use o endereço IPv4 retornado no lugar de `<IP-DO-RPI>` nos endereços apresentados nas próximas seções.
+
+### 4.6 Configurar o Grafana Cloud (opcional)
+
+Usado para visualizar os logs da aplicação remotamente. O sistema funciona normalmente sem essa integração — pule esta seção se não for usá-la.
+
+**1. Obtenha as credenciais do Loki.** No [Grafana Cloud](https://grafana.com), abra sua stack → serviço **Loki** → copie a **URL de ingestão** e o **User ID (Instance ID)**. Depois, em **Security → Access Policies → Create access policy**, crie uma política com permissão **Logs: Write**, gere um token e copie-o (ele só aparece uma vez).
+
+A URL segue o formato:
+```text
+https://logs-prod-<REGIAO>.grafana.net/loki/api/v1/push
+```
+
+**2. Preencha as credenciais** em `beirada_ia/app/.env.grafana`:
 
 ```bash
 GRAFANA_CLOUD_ENDPOINT="https://logs-prod-<REGIAO>.grafana.net/loki/api/v1/push"
@@ -465,18 +630,29 @@ GRAFANA_CLOUD_USERNAME="<seu-user-id>"
 GRAFANA_CLOUD_TOKEN="<seu-token>"
 ```
 
-Depois, carregue o arquivo no serviço adicionando ao `yolo-api` no `docker-compose.yml`:
+**3. Carregue o arquivo no serviço**, adicionando ao `yolo-api` no `docker-compose.yml`:
 
 ```yaml
     env_file:
       - ./beirada_ia/app/.env.grafana
 ```
 
-Sem essa configuração o sistema funciona normalmente - apenas não exporta logs para o dashboard.
+**4. Recrie os contêineres** para aplicar a mudança:
+
+```bash
+docker compose down
+docker compose up -d --build
+```
+
+A partir daqui o `yolo-api` envia logs ao Grafana Cloud. Sem essa configuração, o sistema roda normalmente só sem o dashboard remoto.
 
 ---
 
 ## Passo 5: Execução
+
+### 5.1 Iniciar os serviços
+
+Na raiz do repositório, execute:
 
 ```bash
 docker compose up --build
@@ -484,57 +660,46 @@ docker compose up --build
 
 Na primeira execução o build leva vários minutos (compilação do OpenCV e do PyTorch para ARM). Execuções seguintes usam cache.
 
-Para rodar em segundo plano:
+Para executar em segundo plano:
 
 ```bash
 docker compose up -d --build
-docker compose logs -f yolo-api
 ```
 
-Para parar:
-
-```bash
-docker compose down
-```
-
-### Serviços expostos
-
-| Serviço | Endereço | Função |
-|---|---|---|
-| `yolo-api` | `http://<IP-DO-RPI>:8000` | API REST de inferência |
-| `yolo-stream` | `http://<IP-DO-RPI>:5000/stream` | Stream MJPEG anotado |
-| `yolo-client` | - | Roda inferências de teste automaticamente |
-
-### Endpoints principais
-
-| Método | Rota | Descrição |
-|---|---|---|
-| `GET` | `/health` | Estado do serviço e do modelo carregado |
-| `POST` | `/predict` | Inferência sobre imagem em base64, retorna JSON |
-| `POST` | `/predict/image` | Mesma inferência, retorna JPEG anotado |
-| `POST` | `/predict/camera` | Captura da câmera e infere, retorna JSON |
-| `GET` | `/predict/camera/image` | Captura da câmera e infere, retorna JPEG |
-| `POST` | `/predict/batch` | Lote de imagens |
-| `GET` | `/metrics` | Métricas acumuladas (total, sucesso, latência média) |
-| `GET` | `/stream/camera` | Stream MJPEG direto da API |
-| `GET` | `/stream/view` | Página HTML de visualização em tempo real |
-| `GET` | `/docs` | Documentação interativa (Swagger) |
-
----
-
-## Passo 6: Verificação do resultado
-
-Esta é a seção que confirma que a replicação deu certo. Execute as verificações na ordem.
-
-### 6.1 Os contêineres subiram
+### 5.2 Verificar os serviços
 
 ```bash
 docker compose ps
 ```
 
-**Esperado:** três serviços com `STATUS` em `Up`, e `yolo-api` marcado como `(healthy)`.
+Os serviços esperados são `yolo-api`, `yolo-stream` e `yolo-client`.
 
-### 6.2 A API responde e o modelo carregou
+Para acompanhar os logs da API:
+
+```bash
+docker compose logs -f yolo-api
+```
+
+### 5.3 Encerrar os serviços
+
+```bash
+docker compose down
+```
+---
+
+## Passo 6: Verificação do resultado
+
+A verificação confirma, em ordem, que cada camada do sistema está de pé e termina com o ciclo físico completo — da câmera ao desvio da peça.
+
+### 6.1 Serviços da aplicação
+
+```bash
+docker compose ps
+```
+
+**Esperado:** `yolo-api`, `yolo-stream` e `yolo-client` ativos.
+
+### 6.2 API e modelo de inferência
 
 ```bash
 curl http://localhost:8000/health
@@ -546,79 +711,105 @@ curl http://localhost:8000/health
 {"status":"ok","model_loaded":true,"model_name":"yolov8n_v4.pt"}
 ```
 
-Se `model_loaded` vier `false`, o caminho do modelo está errado; volte ao Passo 4.2.
+Se `model_loaded` vier `false`, o caminho do modelo está errado — volte ao [Passo 4.2](#42-obter-os-pesos-do-modelo).
 
-### 6.3 A inferência funciona sobre uma imagem
+Em seguida, teste uma captura da câmera:
 
 ```bash
 curl -X POST http://localhost:8000/predict/camera \
      -H "Content-Type: application/json" -d '{}'
 ```
 
-**Esperado:** JSON com um array `detections`, cada item contendo `label`, `confidence` e `bbox`, além de um campo de tempo de inferência.
+**Esperado:** um JSON com o array `detections`; cada item com `label`, `confidence` e `bbox` quando houver peça na câmera.
 
-### 6.4 O stream em tempo real funciona
+### 6.3 Streaming - resultado visual da detecção
 
-Abra no navegador de outra máquina da mesma rede:
+Acesse pelo navegador de outra máquina da mesma rede (descubra o IP com o [Passo 4.5](#45-descobrir-o-ip-da-raspberry-pi)):
 
-```
+```text
 http://<IP-DO-RPI>:5000/stream
 http://<IP-DO-RPI>:8000/stream/view
 ```
 
-**(IMAGEM: página /stream/view com bounding boxes desenhadas sobre peças reais)**
+Confirme visualmente que:
 
-**Esperado:** vídeo ao vivo da esteira com caixas delimitadoras e rótulos de classe sobre as peças.
+- a imagem da câmera está sendo atualizada;
+- as peças presentes na esteira são detectadas;
+- as **bounding boxes** estão posicionadas sobre as peças correspondentes;
+- o rótulo exibido corresponde à classe identificada.
 
-### 6.5 O ESP32 recebe comandos e aciona os servos
+<p align="left">
+    <img src="docs/imagens/gif-deteccao.gif"
+        alt="Detecção de classe"
+        width="700">
+</p>
 
-Com o `idf.py monitor` aberto em um terminal:
+### 6.4 Grafana e monitoramento (opcional)
 
-```bash
-echo "1" > /dev/ttyACM0
+Se o [Passo 4.6](#46-configurar-o-grafana-cloud-opcional) foi configurado, acompanhe os logs no dashboard do Grafana Cloud. A API também expõe `/metrics` para consulta local das métricas acumuladas, com ou sem o Grafana configurado.
+
+<p align="left">
+    <img src="docs/imagens/grafana-2.jpg"
+        alt="Dashboard do Grafana"
+        width="700">
+</p>
+<p align="left">
+    <img src="docs/imagens/grafana-3.jpg"
+        alt="Dashboard do Grafana"
+        width="700">
+</p>
+
+### 6.5 Comunicação e atuação do ESP32-S3
+
+Com o firmware conectado e os serviços em execução, acompanhe os logs do ESP32-S3 durante a passagem de uma peça. O fluxo esperado é:
+
+```text
+Comando serial recebido → peça enfileirada → sensor de entrada detectado
+→ servo acionado → sensor de saída detectado → servo retorna à posição de repouso
 ```
 
-**Esperado no monitor:**
-
-```
-I (xxx) UART_COMUNICAO: Comando serial recebido: '1' -> Classe: 1
-I (xxx) LOGICA_FILAS: Peça classe 1 enfileirada para aguardar no Sensor 1
-I (xxx) LOGICA_FILAS: Servo 1 aguardando peça no Sensor de ENTRADA...
-```
-
-Agora passe a mão na frente do sensor de entrada 1:
-
-```
-I (xxx) LOGICA_FILAS: Peça na entrada do Servo 1! Acionando braço...
-I (xxx) LOGICA_FILAS: Aguardando confirmação no Sensor de SAÍDA 1...
-```
-
-E na frente do sensor de saída 1:
-
-```
-I (xxx) LOGICA_FILAS: Peça recebida na esteira perpendicular 1! Recolhendo servo.
-```
-
-O servo deve abrir no primeiro evento e voltar a 90° no segundo.
+Para uma peça das classes **1, 2 ou 3**, deve ocorrer o acionamento do servo correspondente. A classe **4** não possui servo associado e deve seguir diretamente pela esteira.
 
 ### 6.6 Teste ponta a ponta
 
-**(IMAGEM: gif do ciclo completo - peça na esteira, detecção na tela, servo desviando)**
+Coloque uma peça de teste na esteira e acompanhe o ciclo completo:
 
-Coloque uma peça na esteira em movimento e acompanhe:
+1. **Detecção:** a peça aparece no streaming com a classe correspondente.
+2. **Comunicação:** a classe detectada é enviada pela comunicação serial ao ESP32-S3.
+3. **Fila:** o comando é associado ao servo correspondente.
+4. **Entrada:** o sensor de entrada detecta a aproximação da peça.
+5. **Atuação:** o servo correspondente é acionado e desvia a peça.
+6. **Saída:** o sensor de saída confirma a transferência e o servo retorna à posição de repouso.
 
-1. A peça aparece no stream com bounding box e rótulo correto.
-2. O sensor de entrada correspondente acusa a passagem no log do firmware.
-3. O servo aciona e desvia a peça.
-4. O sensor de saída confirma e o servo recolhe.
+Para uma peça da **classe 4**, o teste deve confirmar que ela permanece no trajeto principal, sem acionamento de servo.
 
-### 6.7 Suíte de testes automatizados
+<p align="left">
+    <img src="docs/imagens/teste.gif"
+        alt="Separação em acção"
+        width="700">
+</p>
+
+### 6.7 Testes automatizados
 
 ```bash
 docker compose exec yolo-api python -m pytest tests/ -v
 ```
 
-**Esperado:** todos os testes de `test_api.py` e `test_preprocessor.py` passando.
+**Esperado:** os testes de `test_api.py` e `test_preprocessor.py` concluídos sem falhas.
+
+### Resultado esperado da replicação
+
+- [ ] os serviços Docker estão em execução;
+- [ ] a API responde ao endpoint `/health` com o modelo carregado;
+- [ ] a câmera fornece imagens para a aplicação;
+- [ ] o modelo realiza as detecções e retorna bounding boxes;
+- [ ] o streaming exibe as detecções corretamente;
+- [ ] a comunicação serial entre Raspberry Pi e ESP32-S3 funciona;
+- [ ] as classes 1, 2 e 3 acionam os respectivos servos;
+- [ ] a classe 4 segue pela esteira sem acionamento de servo;
+- [ ] os sensores confirmam a entrada e a saída das peças;
+- [ ] o ciclo ponta a ponta ocorre conforme descrito;
+- [ ] os testes automatizados são concluídos sem falhas.
 
 ---
 
@@ -662,5 +853,3 @@ Distribuído sob os termos do arquivo [LICENSE](LICENSE).
 <p align="center">
   <sub>Projeto V.I.T.A. · Computação na Beirada · 2026</sub>
 </p>
-
-

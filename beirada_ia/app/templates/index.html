@@ -4,7 +4,6 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Beirada IA</title>
-
     <link rel="stylesheet" href="/static/css/style.css">
 </head>
 <body>
@@ -22,9 +21,7 @@
     </header>
 
     <main class="stream-container">
-
         <div class="stream-wrapper">
-
             <img
                 id="camera-stream"
                 src="/stream/camera"
@@ -32,45 +29,31 @@
             >
 
             <div id="camera-offline" class="camera-offline">
-
                 <div class="offline-content">
                     <h2>📷 Câmera indisponível</h2>
                     <p>Aguardando conexão com o stream...</p>
                 </div>
-
             </div>
-
         </div>
-
     </main>
 
     <footer class="metrics">
-
-        <div class="metric">
-            <span>FPS</span>
-            <strong id="fps">--</strong>
-        </div>
-
-        <div class="metric">
-            <span>Inferência</span>
-            <strong id="latency">-- ms</strong>
-        </div>
-
-        <div class="metric">
-            <span>Requests</span>
-            <strong id="requests">--</strong>
-        </div>
-
         <div class="metric">
             <span>Modelo</span>
             <strong id="model">YOLOv8</strong>
         </div>
 
         <div class="metric">
+            <span>Dashboard</span>
+            <strong>
+                <a href="https://rusbe.grafana.net/d/ra8dpzs/raspberry" target="_blank" rel="noopener">Abrir</a>
+            </strong>
+        </div>
+
+        <div class="metric">
             <span>Status</span>
             <strong id="status-footer">Online</strong>
         </div>
-
     </footer>
 
     <script src="/static/js/main.js"></script>
