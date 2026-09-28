@@ -259,12 +259,7 @@ def _run_stream_or_camera_only(frame: np.ndarray, model, confidence: float, logg
 
         return results[0].plot()
     except Exception as exc:
-        log_event(
-            "stream_yolo_fallback_camera_only",
-            level="WARN",
-            reason=str(exc),
-            confidence=confidence,
-        )
+        log_event("stream_yolo_fallback_camera_only",level="WARN",reason=str(exc),confidence=confidence,)
         return frame
 
 
@@ -288,32 +283,6 @@ def _load_image_from_request(request: PredictRequest) -> np.ndarray:
         return np.array(img)
     except httpx.HTTPError as e:
         raise HTTPException(status_code=400, detail=f"Erro ao baixar imagem: {e}") from e
-
-
-def _capture_frame_from_camera(device_id: int = 0) -> np.ndarray:
-    """Captura frame via rpicam-still/libcamera-still ou OpenCV."""
-    for cmd_tool in ["rpicam-still", "libcamera-still"]:
-        try:
-            cmd = [cmd_tool,"-t", "500","-n","-o", "-","--width", "1352","--height", "720","-e", "jpg", ]
-            result = subprocess.run(cmd,stdout=subprocess.PIPE,stderr=subprocess.PIPE,timeout=5,)
-            if result.returncode == 0 and result.stdout:
-                img = Image.open(io.BytesIO(result.stdout)).convert("RGB")
-                return np.array(img)
-        except (FileNotFoundError, subprocess.SubprocessError, OSError):
-            continue
-
-    cap = cv2.VideoCapture(device_id)
-    if cap.isOpened():
-        try:
-            for _ in range(3):
-                cap.read()
-            ret, frame_bgr = cap.read()
-            if ret and frame_bgr is not None:
-                return cv2.cvtColor(frame_bgr, cv2.COLOR_BGR2RGB)
-        finally:
-            cap.release()
-
-    raise HTTPException(status_code=500,detail="Falha ao capturar imagem da câmera. Verifique a conexão do cabo flat.",)
 
 
 @app.get("/health", response_model=HealthResponse)
@@ -357,228 +326,6 @@ def predict(request: PredictRequest):
         raise HTTPException(status_code=500, detail=str(e)) from e
 
 
-# @app.post("/predict/image", responses={200: {"content": {"image/jpeg": {}}}})
-# def predict_image(request: PredictRequest):
-#     """Executa inferência em imagem enviada e retorna JPEG com caixas delimitadoras."""
-#     request_id = str(uuid.uuid4())[:8]
-#     _metrics_update(total_delta=1)
-
-#     log_event(
-#         "predict_image_start",
-#         request_id=request_id,
-#         model=request.model_name,
-#         confidence=request.confidence,
-#     )
-
-#     try:
-#         img_rgb = _load_image_from_request(request)
-#         model = load_model(request.model_name)
-
-#         t0 = time.perf_counter()
-#         results = model(img_rgb, conf=request.confidence, verbose=False)
-#         elapsed_ms = (time.perf_counter() - t0) * 1000
-
-#         INFERENCE_TIME.set(elapsed_ms / 1000)
-#         classes_summary = _publish_detection_metrics(model, results)
-#         log_event(
-#             "predict_image_detections",
-#             request_id=request_id,
-#             model=request.model_name,
-#             detections=classes_summary,
-#         )
-
-#         _metrics_update(success_delta=1, total_ms_delta=elapsed_ms)
-
-#         annotated_array = results[0].plot()
-#         annotated_pil = Image.fromarray(annotated_array)
-
-#         buffer = io.BytesIO()
-#         annotated_pil.save(buffer, format="JPEG", quality=95)
-
-#         log_event(
-#             "predict_image_complete",
-#             request_id=request_id,
-#             inference_ms=round(elapsed_ms, 2),
-#         )
-
-#         return Response(content=buffer.getvalue(), media_type="image/jpeg")
-
-#     except HTTPException:
-#         raise
-#     except FileNotFoundError as e:
-#         log_event(
-#             "predict_image_error",
-#             level="ERROR",
-#             request_id=request_id,
-#             reason=str(e),
-#         )
-#         raise HTTPException(status_code=404, detail=str(e)) from e
-#     except Exception as e:
-#         log_event(
-#             "predict_image_error",
-#             level="ERROR",
-#             request_id=request_id,
-#             reason=str(e),
-#         )
-#         raise HTTPException(status_code=500, detail=str(e)) from e
-
-
-# @app.post("/predict/camera", response_model=PredictResponse)
-# def predict_from_camera(
-#     device_id: int = Query(0, description="Índice do dispositivo (/dev/videoX)"),
-#     confidence: float = Query(0.70, ge=0.0, le=1.0, description="Limiar de confiança"),
-#     model_name: str = Query("yolov8n.pt", description="Modelo YOLO a ser utilizado"),
-# ):
-#     """Captura uma foto pela câmera, executa inferência e retorna as detecções."""
-#     request_id = str(uuid.uuid4())[:8]
-#     _metrics_update(total_delta=1)
-
-#     log_event(
-#         "camera_predict_start",
-#         request_id=request_id,
-#         device_id=device_id,
-#         model=model_name,
-#         confidence=confidence,
-#     )
-
-#     try:
-#         img_rgb = _capture_frame_from_camera(device_id=device_id)
-#         result = _run_inference(img_rgb, model_name, confidence)
-
-#         _metrics_update(success_delta=1, total_ms_delta=result.inference_ms)
-
-#         log_event(
-#             "camera_predict_complete",
-#             request_id=request_id,
-#             detections=len(result.detections),
-#             inference_ms=result.inference_ms,
-#         )
-#         return result
-
-#     except HTTPException:
-#         raise
-#     except Exception as e:
-#         log_event(
-#             "camera_predict_error",
-#             level="ERROR",
-#             request_id=request_id,
-#             reason=str(e),
-#         )
-#         raise HTTPException(status_code=500, detail=str(e)) from e
-
-
-# @app.get("/predict/camera/image", responses={200: {"content": {"image/jpeg": {}}}})
-# def predict_from_camera_image(
-#     device_id: int = Query(0, description="Índice do dispositivo (/dev/videoX)"),
-#     confidence: float = Query(0.70, ge=0.0, le=1.0, description="Limiar de confiança"),
-#     model_name: str = Query("yolov8n.pt", description="Modelo YOLO a ser utilizado"),
-# ):
-#     """Captura imagem da câmera, executa inferência e retorna JPEG anotado."""
-#     request_id = str(uuid.uuid4())[:8]
-#     _metrics_update(total_delta=1)
-
-#     log_event(
-#         "camera_image_start",
-#         request_id=request_id,
-#         device_id=device_id,
-#         model=model_name,
-#         confidence=confidence,
-#     )
-
-#     try:
-#         img_rgb = _capture_frame_from_camera(device_id=device_id)
-#         model = load_model(model_name)
-
-#         t0 = time.perf_counter()
-#         results = model(img_rgb, conf=confidence, verbose=False)
-#         elapsed_ms = (time.perf_counter() - t0) * 1000
-
-#         INFERENCE_TIME.set(elapsed_ms / 1000)
-#         classes_summary = _publish_detection_metrics(model, results)
-#         log_event(
-#             "camera_image_detections",
-#             request_id=request_id,
-#             model=model_name,
-#             detections=classes_summary,
-#         )
-
-#         _metrics_update(success_delta=1, total_ms_delta=elapsed_ms)
-
-#         annotated_array = results[0].plot()
-#         annotated_pil = Image.fromarray(annotated_array)
-
-#         buffer = io.BytesIO()
-#         annotated_pil.save(buffer, format="JPEG", quality=95)
-
-#         log_event(
-#             "camera_image_complete",
-#             request_id=request_id,
-#             inference_ms=round(elapsed_ms, 2),
-#         )
-
-#         return Response(content=buffer.getvalue(), media_type="image/jpeg")
-
-#     except HTTPException:
-#         raise
-#     except Exception as e:
-#         log_event(
-#             "camera_image_error",
-#             level="ERROR",
-#             request_id=request_id,
-#             reason=str(e),
-#         )
-#         raise HTTPException(status_code=500, detail=str(e)) from e
-
-
-# @app.post("/predict/batch", response_model=BatchPredictResponse)
-# def predict_batch(request: BatchPredictRequest):
-#     request_id = str(uuid.uuid4())[:8]
-#     t_total = time.perf_counter()
-#     results = []
-
-#     log_event(
-#         "batch_predict_start",
-#         request_id=request_id,
-#         images=len(request.images_base64),
-#         model=request.model_name,
-#         confidence=request.confidence,
-#     )
-
-#     try:
-#         for img_b64 in request.images_base64:
-#             img = _decode_image(img_b64)
-#             result = _run_inference(
-#                 img,
-#                 request.model_name,
-#                 request.confidence,
-#             )
-#             results.append(result)
-#             _metrics_update(total_delta=1, success_delta=1, total_ms_delta=result.inference_ms)
-
-#         total_ms = (time.perf_counter() - t_total) * 1000
-
-#         log_event(
-#             "batch_predict_complete",
-#             request_id=request_id,
-#             images=len(results),
-#             total_ms=round(total_ms, 2),
-#         )
-
-#         return BatchPredictResponse(
-#             results=results,
-#             total_inference_ms=round(total_ms, 2),
-#         )
-
-#     except Exception as e:
-#         log_event(
-#             "batch_predict_error",
-#             level="ERROR",
-#             request_id=request_id,
-#             reason=str(e),
-#         )
-#         raise HTTPException(status_code=500, detail=str(e)) from e
-
-
 @app.get("/metrics", response_model=MetricsResponse)
 async def get_metrics():
     metrics = _metrics_read_for_response()
@@ -587,7 +334,6 @@ async def get_metrics():
         if metrics["success"] > 0
         else 0.0
     )
-
     active_model = get_default_model_name()
 
     return MetricsResponse(
